@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateReport, reportToCsv, reportToMarkdown } from './report';
+import { generateReport, reportFindingsToUiFindings, reportToCsv, reportToMarkdown } from './report';
 import { solveSteadyState } from '../physics/steadySolver';
 import { waterProperties } from '../domain/fluid';
 import { pumpSkidNetwork } from '../examples/demoNetworks';
@@ -48,5 +48,33 @@ describe('engineering report', () => {
     const md = reportToMarkdown(report);
     expect(md).toContain('# Pipeline Engineering Report');
     expect(md).toContain('Verdict:');
+  });
+
+  it('reportFindingsToUiFindings drops "ok" findings and maps severities for display', () => {
+    const ui = reportFindingsToUiFindings([
+      { severity: 'ok', component: '—', message: 'Nothing wrong.', clause: '—' },
+      { severity: 'warning', component: 'PIPE1', message: 'Velocity high.', clause: 'API RP 14E' },
+      { severity: 'violation', component: 'PIPE2', message: 'Stress high.', clause: 'ASME B31.3 §302.3' },
+    ]);
+    expect(ui).toHaveLength(2);
+    expect(ui[0]).toEqual({ severity: 'warning', ref: 'PIPE1', message: 'Velocity high. (API RP 14E)' });
+    // A "violation" maps to "error" (the UI's more urgent severity) and keeps its ref.
+    expect(ui[1]).toEqual({ severity: 'error', ref: 'PIPE2', message: 'Stress high. (ASME B31.3 §302.3)' });
+  });
+
+  it('a hoop-stress violation on a solved network surfaces as an "error" UI finding with a resolvable ref', () => {
+    const net: PipelineNetwork = {
+      temperatureC: 20,
+      subAssemblies: [],
+      nodes: [
+        { id: 'HP', type: 'reservoir', position: { x: 0, y: 0, z: 0 }, fixedHead: 3500 },
+        { id: 'LP', type: 'reservoir', position: { x: 100, y: 0, z: 0 }, fixedHead: 3480 },
+      ],
+      links: [{ id: 'P', kind: 'pipe', from: 'HP', to: 'LP', nps: '2"', schedule: '40', length: 100 }],
+    };
+    const res = solveSteadyState(net);
+    const report = generateReport(net, res, waterProperties(20));
+    const ui = reportFindingsToUiFindings(report.findings);
+    expect(ui.some((f) => f.severity === 'error' && f.ref === 'P')).toBe(true);
   });
 });

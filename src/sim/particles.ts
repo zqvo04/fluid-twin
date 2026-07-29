@@ -97,6 +97,62 @@ export function spawnParticle(graph: FlowGraph, rand: () => number): Particle | 
   return { linkId: choice.linkId, s: choice.enterS === 0 ? rand() * 0.05 : 1 - rand() * 0.05, dir: choice.dir };
 }
 
+/**
+ * Nudge the particle population back toward each link's flow-proportional
+ * share, n_target(link) = N * |Q_link| / sum(|Q|).
+ *
+ * Left alone, a link's *dwell time* (L/V) — not its flow — sets the
+ * steady-state particle count on it: particles arrive at a rate
+ * proportional to Q and each stays for L/V, so occupancy settles at
+ * Q * (L/V) = Q*L/(Q/A) = A*L, i.e. pipe volume. That inverts the signal a
+ * throttled valve should give: slowing the downstream flow *lengthens*
+ * dwell time, so occupancy would rise, not fall, as a valve closes.
+ *
+ * This only ever moves particles OFF an over-occupied link, back into the
+ * same flow-weighted lottery spawnParticle uses for a fresh particle — it
+ * never forces particles onto an under-occupied one — so the total count
+ * is conserved and links empty out gradually (probabilistically) rather
+ * than snapping to the target every call.
+ */
+/** How often (in accumulated animation seconds) callers should invoke
+ * rebalanceOccupancy — often enough to visibly track a slider change,
+ * rarely enough that it never reads as a distinct discrete "reshuffle". */
+export const REBALANCE_INTERVAL_S = 0.5;
+
+export function rebalanceOccupancy(particles: Particle[], graph: FlowGraph, rand: () => number): void {
+  const total = particles.length;
+  if (total === 0) return;
+
+  let totalWeight = 0;
+  for (const c of graph.allChoices) totalWeight += c.weight;
+  if (totalWeight < MIN_FLOW) return;
+
+  const targetShare = new Map<string, number>();
+  for (const c of graph.allChoices) {
+    targetShare.set(c.linkId, (targetShare.get(c.linkId) ?? 0) + c.weight / totalWeight);
+  }
+
+  const countByLink = new Map<string, number>();
+  for (const p of particles) countByLink.set(p.linkId, (countByLink.get(p.linkId) ?? 0) + 1);
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    const current = countByLink.get(p.linkId) ?? 0;
+    const target = (targetShare.get(p.linkId) ?? 0) * total;
+    const surplus = current - target;
+    if (surplus <= 1) continue;
+    // Evict probabilistically (surplus/current chance) rather than all at
+    // once, so a big correction still reads as a gradual thinning-out.
+    if (rand() >= surplus / current) continue;
+
+    const replacement = spawnParticle(graph, rand);
+    if (!replacement) continue;
+    particles[i] = replacement;
+    countByLink.set(p.linkId, current - 1);
+    countByLink.set(replacement.linkId, (countByLink.get(replacement.linkId) ?? 0) + 1);
+  }
+}
+
 /** Advance every particle by `dtSeconds`, handing off or respawning at link ends. */
 export function stepParticles(
   particles: Particle[],

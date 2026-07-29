@@ -75,8 +75,11 @@ export function GridCanvas() {
   // surge propagate live.
   const pressureField = useMemo(() => {
     if (!showPressure) return null;
+    // The transient stream only carries node heads, not per-link
+    // flow/velocity, so its overlay falls back to the plain HGL-pressure
+    // behavior (no static/wall-load correction) during a running surge.
     if (transientActive && transientHeads) return computePressureField(grid, compiled, transientHeads);
-    return result ? computePressureField(grid, compiled, result.heads) : null;
+    return result ? computePressureField(grid, compiled, result.heads, result.links) : null;
   }, [showPressure, result, grid, compiled, transientActive, transientHeads]);
 
   useEffect(() => {

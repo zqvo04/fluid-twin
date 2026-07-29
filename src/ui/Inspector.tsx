@@ -28,8 +28,8 @@ export function Inspector() {
 
   const readout = useMemo(() => {
     if (!tile || !result) return null;
-    const field = computePressureField(grid, compiled, result.heads);
-    const p = tilePressure(tile.id, compiled, field);
+    const field = computePressureField(grid, compiled, result.heads, result.links);
+    const p = tilePressure(tile.id, grid, compiled, field);
     const linkId = compiled.tileLink.get(tile.id);
     const link = linkId ? result.links.get(linkId) : undefined;
     return { pressureKPa: p ? p.pa / 1000 : null, flow: link?.flow ?? null, velocity: link?.velocity ?? null };

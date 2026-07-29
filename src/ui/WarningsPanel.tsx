@@ -5,12 +5,18 @@ import { resolveIssueTile } from '../grid/compile';
 export function WarningsPanel() {
   const [open, setOpen] = useState(false);
   const issues = useAppStore((s) => s.issues);
+  const result = useAppStore((s) => s.result);
   const grid = useAppStore((s) => s.grid);
   const compiled = useAppStore((s) => s.compiled);
   const focusTile = useAppStore((s) => s.focusTile);
 
-  const errorCount = issues.filter((i) => i.severity === 'error').length;
-  const warnCount = issues.filter((i) => i.severity === 'warning').length;
+  // Structural issues (block re-solving) plus solved-network engineering
+  // findings (hoop stress, erosion, NPSH, valve cavitation — informational,
+  // computed after a converged solve, never gate the solver themselves).
+  const allIssues = [...issues, ...(result?.findings ?? [])];
+
+  const errorCount = allIssues.filter((i) => i.severity === 'error').length;
+  const warnCount = allIssues.filter((i) => i.severity === 'warning').length;
   if (errorCount === 0 && warnCount === 0) return null;
 
   const onPick = (ref: string | undefined) => {
@@ -27,7 +33,7 @@ export function WarningsPanel() {
       </div>
       {open && (
         <div className="diag-dropdown">
-          {issues.map((issue, i) => (
+          {allIssues.map((issue, i) => (
             <div
               key={i}
               className={`diag-item ${issue.severity}`}
