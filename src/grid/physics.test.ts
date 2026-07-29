@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { emptyGrid } from './types';
-import { makeTile, placeTile, DEFAULT_TILE_DEFAULTS } from './ops';
+import { makeTile, placeTile, updateTile, DEFAULT_TILE_DEFAULTS } from './ops';
 import { compile } from './compile';
 import { solveSteadyState } from '../physics/steadySolver';
 import { pipeGeometry } from '../domain/catalog/pipes';
@@ -20,11 +20,13 @@ describe('grid -> network -> solver reproduces Darcy-Weisbach', () => {
   it('matches the closed-form friction head loss for a straight run', () => {
     const cellSize = 2; // m
     const tileCount = 6;
-    // A single row (elevation is the same everywhere), so the 20 m head
-    // difference between the default source (elevation + 20) and the default
-    // sink (elevation) is pure friction loss — a clean closed-form check.
+    // A single row (elevation is the same everywhere) with the source head
+    // explicitly overridden to 20 m above the default sink (elevation 0),
+    // so the difference is pure friction loss — a clean closed-form check.
     let grid = emptyGrid(tileCount + 2, 1, cellSize);
-    grid = placeTile(grid, makeTile('source', { col: 0, row: 0 }, 0, grid, DEFAULT_TILE_DEFAULTS));
+    const source = makeTile('source', { col: 0, row: 0 }, 0, grid, DEFAULT_TILE_DEFAULTS);
+    grid = placeTile(grid, source);
+    grid = updateTile(grid, source.id, { head: 20 });
     for (let i = 0; i < tileCount; i++) {
       grid = placeTile(grid, makeTile('straight', { col: 1 + i, row: 0 }, 0, grid, DEFAULT_TILE_DEFAULTS));
     }

@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { emptyGrid } from './types';
-import { makeTile, placeTile, DEFAULT_TILE_DEFAULTS } from './ops';
+import { makeTile, placeTile, updateTile, DEFAULT_TILE_DEFAULTS } from './ops';
 import { compile } from './compile';
 import { NetworkTransientSim } from '../physics/networkTransient';
 import { pipeGeometry, A106B } from '../domain/catalog/pipes';
@@ -26,7 +26,11 @@ describe('grid -> network -> MOC reproduces the Joukowsky surge', () => {
     // (artificially slow) wave speed and would otherwise beat against the
     // main line's reflections over many periods.
     let grid = emptyGrid(tileCount + 4, 1, cellSize);
-    grid = placeTile(grid, makeTile('source', { col: 0, row: 0 }, 0, grid, DEFAULT_TILE_DEFAULTS));
+    const source = makeTile('source', { col: 0, row: 0 }, 0, grid, DEFAULT_TILE_DEFAULTS);
+    grid = placeTile(grid, source);
+    // Explicit driving head (an elevated feed tank) — a source no longer
+    // gets a free 20 m of head by default, so this test states its own.
+    grid = updateTile(grid, source.id, { head: 20 });
     for (let i = 0; i < tileCount; i++) {
       grid = placeTile(grid, makeTile('straight', { col: 1 + i, row: 0 }, 0, grid, DEFAULT_TILE_DEFAULTS));
     }

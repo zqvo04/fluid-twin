@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { emptyGrid } from '../grid/types';
-import { makeTile, placeTile } from '../grid/ops';
+import { cellElevation, emptyGrid } from '../grid/types';
+import { makeTile, placeTile, updateTile } from '../grid/ops';
 import { compile } from '../grid/compile';
 import { solveSteadyState } from '../physics/steadySolver';
 import { buildLinkGeometries, pointAtFraction } from './linkGeometry';
@@ -21,16 +21,28 @@ function mulberry32(seed: number): () => number {
 function buildBranchingNetwork() {
   // source -> straight -> tee -> { straight -> sink1 (short, low resistance),
   //                                straight x3 -> sink2 (long, high resistance) }
+  // Both sinks are pinned to the same fixed head (overriding sink2's
+  // elevation-based default) and the source is given an explicit head above
+  // both, so the split is driven purely by the branches' resistance
+  // difference, not by an incidental elevation difference between them.
   let grid = emptyGrid(5, 6, 2);
-  grid = placeTile(grid, makeTile('source', { col: 0, row: 1 }, 0, grid));
+  const source = makeTile('source', { col: 0, row: 1 }, 0, grid);
+  grid = placeTile(grid, source);
   grid = placeTile(grid, makeTile('straight', { col: 1, row: 1 }, 0, grid));
   grid = placeTile(grid, makeTile('tee', { col: 2, row: 1 }, 0, grid));
   grid = placeTile(grid, makeTile('straight', { col: 3, row: 1 }, 0, grid));
-  grid = placeTile(grid, makeTile('sink', { col: 4, row: 1 }, 0, grid));
+  const sink1 = makeTile('sink', { col: 4, row: 1 }, 0, grid);
+  grid = placeTile(grid, sink1);
   grid = placeTile(grid, makeTile('straight', { col: 2, row: 2 }, 90, grid));
   grid = placeTile(grid, makeTile('straight', { col: 2, row: 3 }, 90, grid));
   grid = placeTile(grid, makeTile('straight', { col: 2, row: 4 }, 90, grid));
-  grid = placeTile(grid, makeTile('sink', { col: 2, row: 5 }, 90, grid));
+  const sink2 = makeTile('sink', { col: 2, row: 5 }, 90, grid);
+  grid = placeTile(grid, sink2);
+
+  const commonHead = cellElevation(grid, { col: 0, row: 1 });
+  grid = updateTile(grid, sink1.id, { head: commonHead });
+  grid = updateTile(grid, sink2.id, { head: commonHead });
+  grid = updateTile(grid, source.id, { head: commonHead + 4 });
   return grid;
 }
 
