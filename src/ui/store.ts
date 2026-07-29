@@ -53,11 +53,13 @@ interface AppState {
   result: SteadyUiResult | null;
   solving: boolean;
   showPressure: boolean;
+  showFlow: boolean;
 
   setSolving: (v: boolean) => void;
   applyResult: (r: SolveSteadyResponse) => void;
   clearResult: () => void;
   togglePressure: () => void;
+  toggleFlow: () => void;
 
   setMode: (m: EditMode) => void;
   setArmedKind: (k: TileKind) => void;
@@ -101,6 +103,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   result: null,
   solving: false,
   showPressure: true,
+  showFlow: true,
 
   setSolving: (v) => set({ solving: v }),
   applyResult: (r) =>
@@ -116,6 +119,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   clearResult: () => set({ result: null, solving: false }),
   togglePressure: () => set({ showPressure: !get().showPressure }),
+  toggleFlow: () => set({ showFlow: !get().showFlow }),
 
   setMode: (m) => set({ mode: m, selectedTileId: m === 'select' ? get().selectedTileId : null }),
   setArmedKind: (k) => set({ armedKind: k, mode: 'place' }),

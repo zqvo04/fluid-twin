@@ -49,6 +49,12 @@ body {
   touch-action: none;
 }
 
+.fluid-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* ===================================================================
    Top app bar
    =================================================================== */

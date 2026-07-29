@@ -12,6 +12,8 @@ export function Legend() {
   const solving = useAppStore((s) => s.solving);
   const showPressure = useAppStore((s) => s.showPressure);
   const togglePressure = useAppStore((s) => s.togglePressure);
+  const showFlow = useAppStore((s) => s.showFlow);
+  const toggleFlow = useAppStore((s) => s.toggleFlow);
 
   const field = useMemo(
     () => (result ? computePressureField(grid, compiled, result.heads) : null),
@@ -26,6 +28,9 @@ export function Legend() {
       <div className="legend-row">
         <button className={showPressure ? 'active' : ''} onClick={togglePressure}>
           압력 오버레이
+        </button>
+        <button className={showFlow ? 'active' : ''} onClick={toggleFlow}>
+          유동 애니메이션
         </button>
         {solving && <span className="legend-status">계산 중…</span>}
         {!solving && result && !result.converged && <span className="legend-status warn">수렴 실패</span>}

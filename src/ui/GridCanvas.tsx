@@ -4,11 +4,15 @@ import { drawGrid } from '../render/tileLayer';
 import { screenToCell, zoomAt, panBy } from '../render/viewport';
 import { makeTile, DEFAULT_TILE_DEFAULTS } from '../grid/ops';
 import { computePressureField } from '../render/pressureField';
+import { useParticleAnimation } from './useParticleAnimation';
 
 export function GridCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fluidCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const panState = useRef<{ x: number; y: number } | null>(null);
+
+  useParticleAnimation(fluidCanvasRef);
 
   const grid = useAppStore((s) => s.grid);
   const view = useAppStore((s) => s.view);
@@ -28,19 +32,22 @@ export function GridCanvas() {
   const setView = useAppStore((s) => s.setView);
   const resetView = useAppStore((s) => s.resetView);
 
-  // Keep the canvas backing store sized to its container * devicePixelRatio.
+  // Keep both canvas backing stores sized to the container * devicePixelRatio.
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!container || !canvas) return;
+    const fluidCanvas = fluidCanvasRef.current;
+    if (!container || !canvas || !fluidCanvas) return;
 
     const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      for (const c of [canvas, fluidCanvas]) {
+        c.width = Math.round(width * dpr);
+        c.height = Math.round(height * dpr);
+        c.style.width = `${width}px`;
+        c.style.height = `${height}px`;
+      }
       setView({ ...useAppStore.getState().view, width, height });
     });
     ro.observe(container);
@@ -148,6 +155,7 @@ export function GridCanvas() {
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
+      <canvas ref={fluidCanvasRef} className="fluid-canvas" />
     </div>
   );
 }
