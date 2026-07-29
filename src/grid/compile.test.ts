@@ -3,7 +3,7 @@ import { solveSteadyState } from '../physics/steadySolver';
 import { emptyGrid, Direction, Rotation, TileKind, GridModel } from './types';
 import { makeTile, placeTile, DEFAULT_TILE_DEFAULTS } from './ops';
 import { tilePorts } from './ports';
-import { compile } from './compile';
+import { compile, resolveIssueTile } from './compile';
 import { validateGrid } from './validate';
 
 /** Find the rotation that gives a tile exactly this set of ports (order-free). */
@@ -190,5 +190,42 @@ describe('validateGrid', () => {
     const issues = validateGrid(grid);
     // No reservoir anywhere in this grid -> validateNetwork's error should surface.
     expect(issues.some((i) => i.severity === 'error')).toBe(true);
+  });
+});
+
+describe('resolveIssueTile', () => {
+  it('resolves a tile id, a network node id, and a network link id back to the owning tile', () => {
+    let grid = emptyGrid(4, 1, 1);
+    ({ grid } = place(grid, 'source', { col: 0, row: 0 }, ['E']));
+    const valvePlacement = place(grid, 'valve', { col: 1, row: 0 }, ['E', 'W']);
+    grid = valvePlacement.grid;
+    const valve = valvePlacement.tile;
+    ({ grid } = place(grid, 'straight', { col: 2, row: 0 }, ['E', 'W']));
+    ({ grid } = place(grid, 'sink', { col: 3, row: 0 }, ['W']));
+
+    const compiled = compile(grid);
+    const valveLinkId = compiled.tileLink.get(valve.id)!;
+    const valveNodeId = compiled.tileNodes.get(valve.id)![0];
+
+    expect(resolveIssueTile(valve.id, grid, compiled)).toBe(valve.id);
+    expect(resolveIssueTile(valveLinkId, grid, compiled)).toBe(valve.id);
+    expect(resolveIssueTile(valveNodeId, grid, compiled)).toBe(valve.id);
+    expect(resolveIssueTile(undefined, grid, compiled)).toBeNull();
+    expect(resolveIssueTile('NOPE', grid, compiled)).toBeNull();
+  });
+
+  it('resolves a dangling/isolated tile ref that never made it into tileNodes or tileLink', () => {
+    let grid = emptyGrid(3, 1, 1);
+    ({ grid } = place(grid, 'source', { col: 0, row: 0 }, ['E']));
+    const strayPlacement = place(grid, 'straight', { col: 1, row: 0 }, ['E', 'W']);
+    grid = strayPlacement.grid;
+    const stray = strayPlacement.tile;
+    // No sink at (2,0) — the straight tile's east port dangles, so it's
+    // excluded from both tileNodes and tileLink but its ref still names it.
+
+    const compiled = compile(grid);
+    expect(compiled.tileNodes.has(stray.id)).toBe(false);
+    expect(compiled.tileLink.has(stray.id)).toBe(false);
+    expect(resolveIssueTile(stray.id, grid, compiled)).toBe(stray.id);
   });
 });

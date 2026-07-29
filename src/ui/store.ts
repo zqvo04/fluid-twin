@@ -12,7 +12,7 @@ import { DEFAULT_TILE_DEFAULTS, TileDefaults, makeTile, placeTile, removeTileAt,
 import { compile, CompileResult } from '../grid/compile';
 import { validateNetwork, ValidationIssue } from '../domain/network';
 import { checkConnectors } from '../domain/connectivity';
-import { defaultViewport, panBy, zoomAt, Viewport } from '../render/viewport';
+import { centerOn, defaultViewport, panBy, zoomAt, Viewport } from '../render/viewport';
 import { NominalSize, Schedule } from '../domain/catalog/pipes';
 import { ValveType } from '../domain/catalog/valves';
 import { SolveSteadyResponse, NetTransientFrame } from '../worker/protocol';
@@ -105,6 +105,11 @@ interface AppState {
   togglePressure: () => void;
   toggleFlow: () => void;
 
+  /** Bumped when the theme changes, so the canvas (which reads colors
+   * imperatively, not via React state) knows to redraw. */
+  themeTick: number;
+  bumpTheme: () => void;
+
   setMode: (m: EditMode) => void;
   setArmedKind: (k: TileKind) => void;
   rotateArmed: () => void;
@@ -113,6 +118,7 @@ interface AppState {
   setHoverCell: (c: Cell | null) => void;
   clickCell: (c: Cell) => void;
   selectTile: (id: string | null) => void;
+  focusTile: (id: string) => void;
   updateSelectedTile: (patch: Partial<Tile>) => void;
   deleteSelected: () => void;
 
@@ -192,6 +198,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   togglePressure: () => set({ showPressure: !get().showPressure }),
   toggleFlow: () => set({ showFlow: !get().showFlow }),
 
+  themeTick: 0,
+  bumpTheme: () => set({ themeTick: get().themeTick + 1 }),
+
   setMode: (m) => set({ mode: m, selectedTileId: m === 'select' ? get().selectedTileId : null }),
   setArmedKind: (k) => set({ armedKind: k, mode: 'place' }),
   rotateArmed: () => set({ armedRotation: (((get().armedRotation + 90) % 360) as Rotation) }),
@@ -233,6 +242,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   selectTile: (id) => set({ selectedTileId: id, mode: id ? 'select' : get().mode }),
+
+  focusTile: (id) => {
+    const { grid, view } = get();
+    const tile = grid.tiles.find((t) => t.id === id);
+    if (!tile) return;
+    set({ selectedTileId: id, mode: 'select', view: centerOn(view, tile.cell) });
+  },
 
   updateSelectedTile: (patch) => {
     const { grid, selectedTileId } = get();

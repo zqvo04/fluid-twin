@@ -34,10 +34,12 @@ export default function App() {
       </div>
 
       <Toolbar />
-      <Palette />
+      <div className="left-dock">
+        <Palette />
+        <TransientPanel />
+      </div>
       <Inspector />
       <Legend />
-      <TransientPanel />
     </div>
   );
 }

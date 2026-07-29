@@ -68,3 +68,14 @@ export function zoomAt(view: Viewport, anchorX: number, anchorY: number, factor:
 export function panBy(view: Viewport, dx: number, dy: number): Viewport {
   return { ...view, panX: view.panX + dx, panY: view.panY + dy };
 }
+
+/** Re-pan so cell (col,row) sits at the center of the canvas viewport (not
+ * the chrome-adjusted board center — the user asked to see this cell now). */
+export function centerOn(view: Viewport, cell: Cell): Viewport {
+  const s = cellSizePx(view);
+  return {
+    ...view,
+    panX: view.width / 2 - (cell.col + 0.5) * s,
+    panY: view.height / 2 - (cell.row + 0.5) * s,
+  };
+}

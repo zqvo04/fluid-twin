@@ -28,6 +28,7 @@ export function GridCanvas() {
   const showPressure = useAppStore((s) => s.showPressure);
   const transientHeads = useAppStore((s) => s.transient.heads);
   const transientActive = useAppStore((s) => s.transient.running || s.transient.history.length > 0);
+  const themeTick = useAppStore((s) => s.themeTick);
 
   const setHoverCell = useAppStore((s) => s.setHoverCell);
   const clickCell = useAppStore((s) => s.clickCell);
@@ -95,7 +96,7 @@ export function GridCanvas() {
     });
     // ghostTile is derived fresh each render from hoverCell/armedKind/etc, so
     // it is intentionally excluded from the dep list to avoid an identity churn.
-  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField]);
+  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, themeTick]);
 
   const eventCell = useCallback(
     (e: React.MouseEvent) => {

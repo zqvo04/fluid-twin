@@ -2,12 +2,38 @@
  * Canvas draw colors for the grid. Mirrors the soft/playful palette in
  * tokens.css but as plain JS constants — reading CSS custom properties back
  * out for every Canvas fillStyle would add a layer of indirection for no
- * benefit, since the grid canvas doesn't currently re-theme at runtime.
+ * benefit. The one exception is the board background/grid lines, which do
+ * need to flip with the light/dark theme (unlike the vivid pipe/valve/pump
+ * accent colors, which read fine against either).
  */
 
-export const CANVAS_BG = '#eaf7f6';
-export const GRID_LINE = '#cfe8e6';
-export const GRID_LINE_STRONG = '#b9dcda';
+const CANVAS_BG_LIGHT = '#eaf7f6';
+const GRID_LINE_LIGHT = '#cfe8e6';
+const GRID_LINE_STRONG_LIGHT = '#b9dcda';
+
+const CANVAS_BG_DARK = '#16211f';
+const GRID_LINE_DARK = '#22322f';
+const GRID_LINE_STRONG_DARK = '#2c433e';
+
+function isDarkMode(): boolean {
+  if (typeof document === 'undefined') return false;
+  const explicit = document.documentElement.getAttribute('data-theme');
+  if (explicit === 'dark') return true;
+  if (explicit === 'light') return false;
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
+}
+
+export function canvasBg(): string {
+  return isDarkMode() ? CANVAS_BG_DARK : CANVAS_BG_LIGHT;
+}
+
+export function gridLine(): string {
+  return isDarkMode() ? GRID_LINE_DARK : GRID_LINE_LIGHT;
+}
+
+export function gridLineStrong(): string {
+  return isDarkMode() ? GRID_LINE_STRONG_DARK : GRID_LINE_STRONG_LIGHT;
+}
 
 export const PIPE_FILL = '#e4527a';
 export const PIPE_OUTLINE = '#c43862';

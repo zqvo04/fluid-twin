@@ -214,3 +214,23 @@ export function compile(grid: GridModel): CompileResult {
 
   return { network, tileNodes, tileLink, linkRunTiles, issues };
 }
+
+/**
+ * Map a ValidationIssue's `ref` (a tile id, a network node id, or a network
+ * link id — different validators use different id spaces) back to the tile
+ * it originated from, so the UI can focus/select it. Returns null if the
+ * ref doesn't resolve to any placed tile (e.g. no ref at all).
+ */
+export function resolveIssueTile(ref: string | undefined, grid: GridModel, compiled: CompileResult): string | null {
+  if (!ref) return null;
+  // A tile id — including one for a tile the compiler ended up excluding
+  // (dangling/isolated), which won't appear in tileNodes/tileLink at all.
+  if (grid.tiles.some((t) => t.id === ref)) return ref;
+  for (const [tileId, nodeIds] of compiled.tileNodes) {
+    if (nodeIds.includes(ref)) return tileId;
+  }
+  for (const [tileId, linkId] of compiled.tileLink) {
+    if (linkId === ref) return tileId;
+  }
+  return null;
+}
