@@ -49,6 +49,12 @@ body {
   touch-action: none;
 }
 
+.fluid-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* ===================================================================
    Top app bar
    =================================================================== */
@@ -108,11 +114,101 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.topbar-right button {
+  white-space: nowrap;
+  flex: none;
 }
 
 .diag-badges {
   display: flex;
   gap: 6px;
+  cursor: pointer;
+}
+
+.diag-dropdown-wrap,
+.preset-dropdown-wrap {
+  position: relative;
+}
+
+.diag-dropdown,
+.preset-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--space-sm);
+  background: var(--color-paper-glass);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  animation: panel-in var(--dur-fast) var(--ease-out);
+}
+
+.preset-dropdown {
+  left: 0;
+  right: auto;
+  width: 240px;
+}
+
+.diag-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.diag-item:hover {
+  background: var(--color-paper-3);
+}
+
+.diag-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex: none;
+}
+
+.diag-item.error .dot {
+  background: var(--color-danger);
+}
+
+.diag-item.warning .dot {
+  background: var(--color-warn);
+}
+
+.preset-dropdown button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 9px;
+}
+
+.preset-dropdown button:hover {
+  background: var(--color-paper-3);
+}
+
+.preset-dropdown button span {
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  font-weight: 400;
 }
 
 .zoom-controls {
@@ -146,10 +242,7 @@ body {
    Panels
    =================================================================== */
 .panel {
-  position: absolute;
-  top: 72px;
-  width: 240px;
-  max-height: calc(100vh - 88px);
+  width: 100%;
   overflow-y: auto;
   padding: var(--space-lg);
   background: var(--color-paper-glass);
@@ -161,14 +254,36 @@ body {
   box-shadow: var(--shadow-lg);
   animation: panel-in var(--dur-slow) var(--ease-out);
   z-index: 30;
+  flex: none;
 }
 
-.palette {
+/* The left dock stacks the palette and (when a valve/pump exists) the
+ * transient panel in normal flow, so a tall one never overlaps the other —
+ * both used to be independently position:absolute and could collide. */
+.left-dock {
+  position: absolute;
+  top: 72px;
+  bottom: var(--space-lg);
   left: var(--space-lg);
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.left-dock .panel {
+  max-height: 100%;
+  min-height: 0;
 }
 
 .inspector {
+  position: absolute;
+  top: 72px;
   right: var(--space-lg);
+  width: 260px;
+  max-height: calc(100vh - 88px);
 }
 
 @keyframes panel-in {
@@ -494,17 +609,108 @@ button.danger:hover {
 }
 
 /* ===================================================================
+   Transient (water hammer) panel
+   =================================================================== */
+.transient-panel {
+  max-height: 50vh;
+}
+
+.hint {
+  margin: var(--space-sm) 0 4px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.target-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.target-list button {
+  font-size: var(--text-xs);
+  padding: 5px 8px;
+}
+
+.transient-chart {
+  display: block;
+  margin-top: var(--space-sm);
+  border-radius: var(--radius-xs);
+  background: var(--color-paper-2);
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-legend .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ===================================================================
    Scrollbars
    =================================================================== */
-.panel::-webkit-scrollbar {
+.panel::-webkit-scrollbar,
+.left-dock::-webkit-scrollbar {
   width: 10px;
 }
 
-.panel::-webkit-scrollbar-thumb {
+.panel::-webkit-scrollbar-thumb,
+.left-dock::-webkit-scrollbar-thumb {
   background: var(--color-line-strong);
   border-radius: var(--radius-pill);
   border: 3px solid transparent;
   background-clip: padding-box;
+}
+
+/* ===================================================================
+   Narrow viewports — shrink the docks instead of letting them eat the
+   whole screen. Not a full mobile redesign (this is a canvas-editing
+   tool), just enough that the board stays usable and nothing overlaps.
+   =================================================================== */
+@media (max-width: 720px) {
+  .left-dock,
+  .inspector {
+    width: min(260px, 62vw);
+  }
+
+  .brand small {
+    display: none;
+  }
+
+  .diag-dropdown,
+  .preset-dropdown {
+    width: min(320px, 80vw);
+  }
+}
+
+@media (max-width: 480px) {
+  .left-dock,
+  .inspector {
+    width: min(230px, 74vw);
+  }
+
+  .panel {
+    padding: var(--space-md);
+  }
+
+  .piece-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

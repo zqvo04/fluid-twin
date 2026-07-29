@@ -169,6 +169,11 @@ export function compile(grid: GridModel): CompileResult {
       // between them).
       const spec = result.run.tiles[0] ?? tile;
 
+      // A direct hub-to-hub connector (no pass-through tiles) is a real, if
+      // physically negligible, pipe length — never exactly 0. The steady
+      // solver is fine with 0 (friction is floored elsewhere), but the MOC
+      // transient solver divides by the wave-travel time, so a literal 0
+      // would produce a zero wave speed and NaN out on the first step.
       runCounter += 1;
       const link: PipeLink = {
         id: `RUN${runCounter}`,
@@ -177,7 +182,7 @@ export function compile(grid: GridModel): CompileResult {
         to: toNode,
         nps: spec.nps,
         schedule: spec.schedule,
-        length: result.run.tiles.length * grid.cellSize,
+        length: Math.max(result.run.tiles.length * grid.cellSize, grid.cellSize * 0.1),
         fittings: fittings.length ? fittings : undefined,
       };
       links.push(link);
@@ -208,4 +213,24 @@ export function compile(grid: GridModel): CompileResult {
   };
 
   return { network, tileNodes, tileLink, linkRunTiles, issues };
+}
+
+/**
+ * Map a ValidationIssue's `ref` (a tile id, a network node id, or a network
+ * link id — different validators use different id spaces) back to the tile
+ * it originated from, so the UI can focus/select it. Returns null if the
+ * ref doesn't resolve to any placed tile (e.g. no ref at all).
+ */
+export function resolveIssueTile(ref: string | undefined, grid: GridModel, compiled: CompileResult): string | null {
+  if (!ref) return null;
+  // A tile id — including one for a tile the compiler ended up excluding
+  // (dangling/isolated), which won't appear in tileNodes/tileLink at all.
+  if (grid.tiles.some((t) => t.id === ref)) return ref;
+  for (const [tileId, nodeIds] of compiled.tileNodes) {
+    if (nodeIds.includes(ref)) return tileId;
+  }
+  for (const [tileId, linkId] of compiled.tileLink) {
+    if (linkId === ref) return tileId;
+  }
+  return null;
 }

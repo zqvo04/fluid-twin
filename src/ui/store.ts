@@ -12,10 +12,10 @@ import { DEFAULT_TILE_DEFAULTS, TileDefaults, makeTile, placeTile, removeTileAt,
 import { compile, CompileResult } from '../grid/compile';
 import { validateNetwork, ValidationIssue } from '../domain/network';
 import { checkConnectors } from '../domain/connectivity';
-import { defaultViewport, panBy, zoomAt, Viewport } from '../render/viewport';
+import { centerOn, defaultViewport, panBy, zoomAt, Viewport } from '../render/viewport';
 import { NominalSize, Schedule } from '../domain/catalog/pipes';
 import { ValveType } from '../domain/catalog/valves';
-import { SolveSteadyResponse } from '../worker/protocol';
+import { SolveSteadyResponse, NetTransientFrame } from '../worker/protocol';
 
 export type EditMode = 'place' | 'select' | 'delete';
 
@@ -26,6 +26,42 @@ export interface SteadyUiResult {
   heads: Map<string, number>;
   links: Map<string, { flow: number; velocity: number; headLoss: number }>;
 }
+
+export interface TransientHistoryPoint {
+  time: number;
+  minHead: number;
+  maxHead: number;
+}
+
+export interface TransientState {
+  targetKind: 'valve' | 'pump' | null;
+  targetId: string | null;
+  closureTimeS: number;
+  seconds: number;
+  running: boolean;
+  time: number;
+  heads: Map<string, number> | null;
+  minHead: number;
+  maxHead: number;
+  peakSurge: number;
+  history: TransientHistoryPoint[];
+  done: boolean;
+}
+
+const INITIAL_TRANSIENT: TransientState = {
+  targetKind: null,
+  targetId: null,
+  closureTimeS: 0.5,
+  seconds: 4,
+  running: false,
+  time: 0,
+  heads: null,
+  minHead: 0,
+  maxHead: 0,
+  peakSurge: 0,
+  history: [],
+  done: false,
+};
 
 function recompile(grid: GridModel): { compiled: CompileResult; issues: ValidationIssue[]; excluded: Set<string> } {
   const compiled = compile(grid);
@@ -53,11 +89,26 @@ interface AppState {
   result: SteadyUiResult | null;
   solving: boolean;
   showPressure: boolean;
+  showFlow: boolean;
+
+  transient: TransientState;
+  setTransientTarget: (kind: 'valve' | 'pump' | null, id: string | null) => void;
+  setTransientClosureTime: (s: number) => void;
+  setTransientSeconds: (s: number) => void;
+  beginTransientRun: () => void;
+  pushTransientFrame: (frame: NetTransientFrame, nodeIds: string[]) => void;
+  endTransientRun: () => void;
 
   setSolving: (v: boolean) => void;
   applyResult: (r: SolveSteadyResponse) => void;
   clearResult: () => void;
   togglePressure: () => void;
+  toggleFlow: () => void;
+
+  /** Bumped when the theme changes, so the canvas (which reads colors
+   * imperatively, not via React state) knows to redraw. */
+  themeTick: number;
+  bumpTheme: () => void;
 
   setMode: (m: EditMode) => void;
   setArmedKind: (k: TileKind) => void;
@@ -67,6 +118,7 @@ interface AppState {
   setHoverCell: (c: Cell | null) => void;
   clickCell: (c: Cell) => void;
   selectTile: (id: string | null) => void;
+  focusTile: (id: string) => void;
   updateSelectedTile: (patch: Partial<Tile>) => void;
   deleteSelected: () => void;
 
@@ -101,6 +153,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   result: null,
   solving: false,
   showPressure: true,
+  showFlow: true,
+
+  transient: INITIAL_TRANSIENT,
+  setTransientTarget: (targetKind, targetId) => set({ transient: { ...get().transient, targetKind, targetId } }),
+  setTransientClosureTime: (closureTimeS) => set({ transient: { ...get().transient, closureTimeS } }),
+  setTransientSeconds: (seconds) => set({ transient: { ...get().transient, seconds } }),
+  beginTransientRun: () =>
+    set({ transient: { ...get().transient, running: true, time: 0, history: [], done: false, heads: null } }),
+  pushTransientFrame: (frame, nodeIds) => {
+    const heads = new Map<string, number>();
+    for (let i = 0; i < nodeIds.length; i++) heads.set(nodeIds[i], frame.heads[i]);
+    const t = get().transient;
+    const history = [...t.history, { time: frame.time, minHead: frame.minHead, maxHead: frame.maxHead }];
+    set({
+      transient: {
+        ...t,
+        time: frame.time,
+        heads,
+        minHead: frame.minHead,
+        maxHead: frame.maxHead,
+        peakSurge: frame.peakSurge,
+        history,
+        running: !frame.done,
+        done: frame.done,
+      },
+    });
+  },
+  endTransientRun: () => set({ transient: { ...get().transient, running: false } }),
 
   setSolving: (v) => set({ solving: v }),
   applyResult: (r) =>
@@ -116,6 +196,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   clearResult: () => set({ result: null, solving: false }),
   togglePressure: () => set({ showPressure: !get().showPressure }),
+  toggleFlow: () => set({ showFlow: !get().showFlow }),
+
+  themeTick: 0,
+  bumpTheme: () => set({ themeTick: get().themeTick + 1 }),
 
   setMode: (m) => set({ mode: m, selectedTileId: m === 'select' ? get().selectedTileId : null }),
   setArmedKind: (k) => set({ armedKind: k, mode: 'place' }),
@@ -158,6 +242,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   selectTile: (id) => set({ selectedTileId: id, mode: id ? 'select' : get().mode }),
+
+  focusTile: (id) => {
+    const { grid, view } = get();
+    const tile = grid.tiles.find((t) => t.id === id);
+    if (!tile) return;
+    set({ selectedTileId: id, mode: 'select', view: centerOn(view, tile.cell) });
+  },
 
   updateSelectedTile: (patch) => {
     const { grid, selectedTileId } = get();

@@ -1,19 +1,30 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useAppStore } from './store';
 import { serializeGrid, deserializeGrid } from '../grid/serialize';
 import { zoomAt } from '../render/viewport';
+import { WarningsPanel } from './WarningsPanel';
+import { GRID_PRESETS } from '../examples/gridPresets';
+import { applyTheme, getStoredTheme, nextTheme, ThemeMode } from './theme';
+
+const THEME_LABEL: Record<ThemeMode, string> = { system: '자동', light: '라이트', dark: '다크' };
 
 export function Toolbar() {
   const grid = useAppStore((s) => s.grid);
   const view = useAppStore((s) => s.view);
-  const issues = useAppStore((s) => s.issues);
   const newGrid = useAppStore((s) => s.newGrid);
   const loadGrid = useAppStore((s) => s.loadGrid);
   const setView = useAppStore((s) => s.setView);
+  const bumpTheme = useAppStore((s) => s.bumpTheme);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(getStoredTheme);
 
-  const errorCount = issues.filter((i) => i.severity === 'error').length;
-  const warnCount = issues.filter((i) => i.severity === 'warning').length;
+  const onToggleTheme = () => {
+    const next = nextTheme(theme);
+    applyTheme(next);
+    setTheme(next);
+    bumpTheme();
+  };
 
   const onSave = () => {
     const blob = new Blob([serializeGrid(grid)], { type: 'application/json' });
@@ -48,15 +59,29 @@ export function Toolbar() {
 
       <div className="topbar-spacer" />
 
-      {(errorCount > 0 || warnCount > 0) && (
-        <div className="diag-badges">
-          {errorCount > 0 && <span className="badge danger">오류 {errorCount}</span>}
-          {warnCount > 0 && <span className="badge warn">경고 {warnCount}</span>}
-        </div>
-      )}
+      <WarningsPanel />
 
       <div className="topbar-right">
         <button onClick={() => newGrid(16, 10, 1)}>새로 만들기</button>
+        <div className="preset-dropdown-wrap">
+          <button onClick={() => setPresetsOpen((v) => !v)}>예제 ▾</button>
+          {presetsOpen && (
+            <div className="preset-dropdown">
+              {GRID_PRESETS.map((p) => (
+                <button
+                  key={p.name}
+                  onClick={() => {
+                    loadGrid(p.build());
+                    setPresetsOpen(false);
+                  }}
+                >
+                  <b>{p.name}</b>
+                  <span>{p.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button onClick={onSave}>저장</button>
         <button onClick={() => fileInput.current?.click()}>불러오기</button>
         <input ref={fileInput} type="file" accept="application/json" hidden onChange={onLoadFile} />
@@ -66,6 +91,10 @@ export function Toolbar() {
           <span>{Math.round(view.zoom * 100)}%</span>
           <button onClick={() => setView(zoomAt(view, view.width / 2, view.height / 2, 1.2))}>+</button>
         </div>
+
+        <button onClick={onToggleTheme} title="테마 전환">
+          {THEME_LABEL[theme]}
+        </button>
       </div>
     </header>
   );

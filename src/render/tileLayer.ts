@@ -9,7 +9,7 @@ import { GridModel, Tile, sameCell } from '../grid/types';
 import { Cell } from '../grid/types';
 import { cellSizePx, cellToScreen, Viewport } from './viewport';
 import { drawTile } from './sprites';
-import { CANVAS_BG, GRID_LINE, GRID_LINE_STRONG, HOVER_FILL, SELECT_RING } from './theme';
+import { HOVER_FILL, SELECT_RING, canvasBg, gridLine, gridLineStrong } from './theme';
 import { CompileResult } from '../grid/compile';
 import { PressureField, tilePressure } from './pressureField';
 
@@ -26,7 +26,7 @@ export interface DrawOptions {
 
 export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: GridModel, opts: DrawOptions = {}): void {
   ctx.save();
-  ctx.fillStyle = CANVAS_BG;
+  ctx.fillStyle = canvasBg();
   ctx.fillRect(0, 0, view.width, view.height);
 
   const s = cellSizePx(view);
@@ -36,7 +36,7 @@ export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gr
   const gridPxH = grid.rows * s;
 
   // Grid lines, only across the placed board (not the whole canvas).
-  ctx.strokeStyle = GRID_LINE;
+  ctx.strokeStyle = gridLine();
   ctx.lineWidth = 1;
   for (let c = 0; c <= grid.cols; c++) {
     const x = originX + c * s;
@@ -52,7 +52,7 @@ export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gr
     ctx.lineTo(originX + gridPxW, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = GRID_LINE_STRONG;
+  ctx.strokeStyle = gridLineStrong();
   ctx.lineWidth = 2;
   ctx.strokeRect(originX, originY, gridPxW, gridPxH);
 
@@ -74,13 +74,16 @@ export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gr
     }
   }
 
-  if (opts.hoverCell && opts.hoverCell.col >= 0 && opts.hoverCell.row >= 0 && opts.hoverCell.col < grid.cols && opts.hoverCell.row < grid.rows) {
-    const { x, y } = cellToScreen(view, opts.hoverCell);
+  const hoverInBounds =
+    !!opts.hoverCell && opts.hoverCell.col >= 0 && opts.hoverCell.row >= 0 && opts.hoverCell.col < grid.cols && opts.hoverCell.row < grid.rows;
+
+  if (hoverInBounds) {
+    const { x, y } = cellToScreen(view, opts.hoverCell!);
     ctx.fillStyle = HOVER_FILL;
     ctx.fillRect(x, y, s, s);
   }
 
-  if (opts.ghostTile && sameCell(opts.ghostTile.cell, opts.hoverCell ?? { col: -1, row: -1 })) {
+  if (hoverInBounds && opts.ghostTile && sameCell(opts.ghostTile.cell, opts.hoverCell!)) {
     const { x, y } = cellToScreen(view, opts.ghostTile.cell);
     ctx.save();
     ctx.globalAlpha = 0.55;
