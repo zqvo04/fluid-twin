@@ -1,42 +1,41 @@
 import { useEffect } from 'react';
-import { Scene } from './scene/Scene';
-import { TopBar } from './ui/TopBar';
-import { ControlPanel } from './ui/ControlPanel';
-import { PressureChart } from './ui/PressureChart';
-import { FlowDashboard } from './ui/FlowDashboard';
-import { PlantOverview } from './ui/PlantOverview';
+import { GridCanvas } from './ui/GridCanvas';
+import { Palette } from './ui/Palette';
+import { Inspector } from './ui/Inspector';
+import { Toolbar } from './ui/Toolbar';
+import { Legend } from './ui/Legend';
 import { useAppStore } from './ui/store';
+import { useAutoSolve } from './ui/useAutoSolve';
 
 export default function App() {
-  const scene = useAppStore((s) => s.scene);
-  const page = useAppStore((s) => s.route.page);
-  const syncFromHash = useAppStore((s) => s.syncFromHash);
+  useAutoSolve();
 
-  // Keep the store's route in sync with the URL hash (back/forward, deep links).
+  const rotateArmed = useAppStore((s) => s.rotateArmed);
+  const setMode = useAppStore((s) => s.setMode);
+  const selectedTileId = useAppStore((s) => s.selectedTileId);
+  const deleteSelected = useAppStore((s) => s.deleteSelected);
+
   useEffect(() => {
-    syncFromHash();
-    const onHash = () => syncFromHash();
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, [syncFromHash]);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === 'r' || e.key === 'R') rotateArmed();
+      if (e.key === 'Escape') setMode('select');
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedTileId) deleteSelected();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [rotateArmed, setMode, selectedTileId, deleteSelected]);
 
   return (
     <div className="app">
-      <div className="scene-layer">
-        <Scene />
+      <div className="canvas-layer">
+        <GridCanvas />
       </div>
 
-      <TopBar />
-      <ControlPanel />
-
-      {scene === 'waterhammer' && (
-        <div className="chart-dock">
-          <PressureChart />
-        </div>
-      )}
-
-      {scene === 'network' && page === 'plant' && <PlantOverview />}
-      {scene === 'network' && page === 'section' && <FlowDashboard />}
+      <Toolbar />
+      <Palette />
+      <Inspector />
+      <Legend />
     </div>
   );
 }

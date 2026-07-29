@@ -1,171 +1,109 @@
 /**
- * UI/edit state (Zustand). Deliberately holds only low-frequency state:
- * the edited network, the current analysis result, selection, and view mode.
- * High-frequency simulation fields (Phase 3) will bypass this store and be
- * written straight to GPU buffers from the render loop.
+ * App state (Zustand). Holds the grid the user edits, the viewport, editing
+ * mode, and the structural compile result (which tiles ended up excluded).
+ * The physics solve result is layered on top in Phase 3 without changing this
+ * shape — `network` below is already the compiled PipelineNetwork it will
+ * be solved from.
  */
 
 import { create } from 'zustand';
-import { PipelineNetwork, NetworkNode, NetworkLink, NodeType, Vec3, emptyNetwork } from '../domain/network';
-import {
-  makeSection,
-  addSection as addSectionOp,
-  updateSection as updateSectionOp,
-  removeSection as removeSectionOp,
-  assignNodesToSection,
-} from '../domain/sections';
-import { Route, PLANT_ROUTE, parseHash, formatHash, routesEqual } from './routing';
-import { cloneSubAssembly } from '../domain/assembly';
-import {
-  addNode as addNodeOp,
-  addLink as addLinkOp,
-  makeNode,
-  makeLink,
-  removeElement,
-  updateNode as updateNodeOp,
-  updateLink as updateLinkOp,
-  changeLinkKind as changeLinkKindOp,
-  splitPipe as splitPipeOp,
-  LinkDefaults,
-} from '../domain/edit';
+import { Cell, GridModel, Rotation, Tile, TileKind, emptyGrid } from '../grid/types';
+import { DEFAULT_TILE_DEFAULTS, TileDefaults, makeTile, placeTile, removeTileAt, rotateTileAt, tileAt, updateTile } from '../grid/ops';
+import { compile, CompileResult } from '../grid/compile';
+import { validateNetwork, ValidationIssue } from '../domain/network';
+import { checkConnectors } from '../domain/connectivity';
+import { defaultViewport, panBy, zoomAt, Viewport } from '../render/viewport';
 import { NominalSize, Schedule } from '../domain/catalog/pipes';
 import { ValveType } from '../domain/catalog/valves';
-import { pumpSkidNetwork } from '../examples/demoNetworks';
-import { LabInputs, DEFAULT_LAB_INPUTS } from '../examples/waterHammerLab';
 import { SolveSteadyResponse } from '../worker/protocol';
 
-export type ViewMode = 'global' | 'detail';
-export type SceneKind = 'network' | 'waterhammer';
-export type EditTool = 'select' | 'run' | 'place-junction' | 'place-reservoir' | 'connect' | 'delete';
+export type EditMode = 'place' | 'select' | 'delete';
 
-export interface AnalysisResult {
+export interface SteadyUiResult {
   converged: boolean;
   iterations: number;
   residual: number;
   heads: Map<string, number>;
   links: Map<string, { flow: number; velocity: number; headLoss: number }>;
-  /**
-   * Section this result was solved in isolation for, with its boundaries pinned
-   * as fixed heads. null/undefined = a full-network solve. The UI badges a
-   * section-scoped result so it is never mistaken for the whole plant.
-   */
-  scopeSectionId?: string | null;
+}
+
+function recompile(grid: GridModel): { compiled: CompileResult; issues: ValidationIssue[]; excluded: Set<string> } {
+  const compiled = compile(grid);
+  const issues = [...compiled.issues, ...validateNetwork(compiled.network), ...checkConnectors(compiled.network)];
+  const excluded = new Set(grid.tiles.map((t) => t.id).filter((id) => !compiled.tileNodes.has(id) && !compiled.tileLink.has(id)));
+  return { compiled, issues, excluded };
 }
 
 interface AppState {
-  network: PipelineNetwork;
-  viewMode: ViewMode;
-  selectedId: string | null;
-  result: AnalysisResult | null;
+  grid: GridModel;
+  view: Viewport;
+
+  mode: EditMode;
+  armedKind: TileKind;
+  armedRotation: Rotation;
+  tileDefaults: TileDefaults;
+
+  hoverCell: Cell | null;
+  selectedTileId: string | null;
+
+  compiled: CompileResult;
+  issues: ValidationIssue[];
+  excludedTileIds: Set<string>;
+
+  result: SteadyUiResult | null;
   solving: boolean;
+  showPressure: boolean;
 
-  // Multi-view platform: which page is shown and which section is active.
-  route: Route;
-  /** Active section id when on a section page, else null (plant overview). */
-  activeSectionId: string | null;
-
-  // Water Hammer Lab (transient) controls.
-  scene: SceneKind;
-  labInputs: LabInputs;
-  closureTime: number;
-  stepsPerFrame: number;
-  periods: number;
-
-  /** Animate flow particles in the Global view. */
-  flowViz: boolean;
-  /** On the plant overview, tint the scene by section instead of head field. */
-  sectionOverlay: boolean;
-
-  // Interactive builder state.
-  editMode: boolean;
-  editTool: EditTool;
-  buildElevation: number;
-  connectFrom: string | null;
-  /** Previous node in an in-progress "Pipe Run" chain. */
-  runFrom: string | null;
-  linkDefaults: LinkDefaults;
-
-  setViewMode: (m: ViewMode) => void;
-  select: (id: string | null) => void;
   setSolving: (v: boolean) => void;
-  applyResult: (r: SolveSteadyResponse, scopeSectionId?: string | null) => void;
+  applyResult: (r: SolveSteadyResponse) => void;
+  clearResult: () => void;
+  togglePressure: () => void;
 
-  // Routing + sections.
-  navigate: (route: Route) => void;
-  syncFromHash: () => void;
-  createSection: () => void;
-  renameSection: (id: string, name: string) => void;
-  recolorSection: (id: string, color: string) => void;
-  deleteSection: (id: string) => void;
-  assignToSection: (nodeId: string, sectionId: string) => void;
+  setMode: (m: EditMode) => void;
+  setArmedKind: (k: TileKind) => void;
+  rotateArmed: () => void;
+  setTileDefaults: (patch: Partial<TileDefaults>) => void;
 
-  setNetwork: (net: PipelineNetwork) => void;
-  updateValveOpening: (linkId: string, opening: number) => void;
-  updatePumpSpeed: (linkId: string, ratio: number) => void;
-  cloneFirstSkid: () => void;
+  setHoverCell: (c: Cell | null) => void;
+  clickCell: (c: Cell) => void;
+  selectTile: (id: string | null) => void;
+  updateSelectedTile: (patch: Partial<Tile>) => void;
+  deleteSelected: () => void;
 
-  setScene: (s: SceneKind) => void;
-  setLabInputs: (patch: Partial<LabInputs>) => void;
-  setClosureTime: (t: number) => void;
-  setStepsPerFrame: (n: number) => void;
-  toggleFlowViz: () => void;
-  toggleSectionOverlay: () => void;
+  setView: (v: Viewport) => void;
+  panBy: (dx: number, dy: number) => void;
+  zoomAt: (x: number, y: number, factor: number) => void;
+  resetView: (width: number, height: number) => void;
 
-  // Builder actions.
-  toggleEditMode: () => void;
-  setEditTool: (t: EditTool) => void;
-  setBuildElevation: (y: number) => void;
-  setLinkDefaults: (patch: Partial<LinkDefaults>) => void;
-  placeNodeAt: (position: Vec3) => void;
-  runClickAt: (position: Vec3) => void;
-  cancelBuild: () => void;
-  /** Raise/lower the build work-plane by delta [m] (snaps to nearby heights). */
-  nudgeBuildHeight: (delta: number) => void;
-  /** Move a node vertically by delta [m] (turns its pipes into risers). */
-  nudgeNodeElevation: (id: string, delta: number) => void;
-  handleNodeClick: (nodeId: string) => void;
-  handleLinkClick: (linkId: string, point?: Vec3) => void;
-  editNode: (id: string, patch: Partial<NetworkNode>) => void;
-  editLink: (id: string, patch: Partial<NetworkLink>) => void;
-  editLinkKind: (id: string, kind: 'pipe' | 'valve' | 'pump') => void;
-  newBlankNetwork: () => void;
+  newGrid: (cols: number, rows: number, cellSize?: number) => void;
+  loadGrid: (grid: GridModel) => void;
 }
 
-/** Editing the network invalidates any prior analysis result. */
-function withStaleResult(net: PipelineNetwork) {
-  return { network: net, result: null };
-}
+const INITIAL_GRID = emptyGrid(16, 10, 1);
 
 export const useAppStore = create<AppState>((set, get) => ({
-  network: pumpSkidNetwork(),
-  viewMode: 'global',
-  selectedId: null,
+  grid: INITIAL_GRID,
+  view: defaultViewport(960, 640, INITIAL_GRID.cols, INITIAL_GRID.rows),
+
+  mode: 'place',
+  armedKind: 'straight',
+  armedRotation: 0,
+  tileDefaults: DEFAULT_TILE_DEFAULTS,
+
+  hoverCell: null,
+  selectedTileId: null,
+
+  ...(() => {
+    const r = recompile(INITIAL_GRID);
+    return { compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded };
+  })(),
+
   result: null,
   solving: false,
+  showPressure: true,
 
-  route: typeof window !== 'undefined' ? parseHash(window.location.hash) : PLANT_ROUTE,
-  activeSectionId:
-    typeof window !== 'undefined' ? parseHash(window.location.hash).sectionId : null,
-
-  scene: 'network',
-  labInputs: DEFAULT_LAB_INPUTS,
-  closureTime: 0.5,
-  stepsPerFrame: 2,
-  periods: 8,
-  flowViz: true,
-  sectionOverlay: true,
-
-  editMode: false,
-  editTool: 'select',
-  buildElevation: 0,
-  connectFrom: null,
-  runFrom: null,
-  linkDefaults: { kind: 'pipe', nps: '4"', schedule: '40', valveType: 'gate' },
-
-  setViewMode: (m) => set({ viewMode: m }),
-  select: (id) => set({ selectedId: id }),
   setSolving: (v) => set({ solving: v }),
-  applyResult: (r, scopeSectionId = null) =>
+  applyResult: (r) =>
     set({
       solving: false,
       result: {
@@ -174,229 +112,103 @@ export const useAppStore = create<AppState>((set, get) => ({
         residual: r.residual,
         heads: new Map(r.heads),
         links: new Map(r.links),
-        scopeSectionId,
       },
     }),
+  clearResult: () => set({ result: null, solving: false }),
+  togglePressure: () => set({ showPressure: !get().showPressure }),
 
-  navigate: (route) => {
-    if (typeof window !== 'undefined') {
-      const next = formatHash(route);
-      if (window.location.hash !== next) window.location.hash = next;
-    }
-    set({ route, activeSectionId: route.sectionId, selectedId: null });
-  },
+  setMode: (m) => set({ mode: m, selectedTileId: m === 'select' ? get().selectedTileId : null }),
+  setArmedKind: (k) => set({ armedKind: k, mode: 'place' }),
+  rotateArmed: () => set({ armedRotation: (((get().armedRotation + 90) % 360) as Rotation) }),
+  setTileDefaults: (patch) => set({ tileDefaults: { ...get().tileDefaults, ...patch } }),
 
-  syncFromHash: () => {
-    if (typeof window === 'undefined') return;
-    const route = parseHash(window.location.hash);
-    if (!routesEqual(route, get().route)) {
-      set({ route, activeSectionId: route.sectionId, selectedId: null });
-    }
-  },
+  setHoverCell: (c) => set({ hoverCell: c }),
 
-  createSection: () => {
-    const net = get().network;
-    const section = makeSection(net);
-    set({ ...withStaleResult(addSectionOp(net, section)) });
-    get().navigate({ page: 'section', sectionId: section.id });
-  },
+  clickCell: (cell) => {
+    const { grid, mode, armedKind, armedRotation, tileDefaults } = get();
+    if (cell.col < 0 || cell.row < 0 || cell.col >= grid.cols || cell.row >= grid.rows) return;
 
-  renameSection: (id, name) => set({ network: updateSectionOp(get().network, id, { name }) }),
-  recolorSection: (id, color) => set({ network: updateSectionOp(get().network, id, { color }) }),
-
-  deleteSection: (id) => {
-    set({ ...withStaleResult(removeSectionOp(get().network, id)) });
-    if (get().activeSectionId === id) get().navigate(PLANT_ROUTE);
-  },
-
-  assignToSection: (nodeId, sectionId) =>
-    set({ ...withStaleResult(assignNodesToSection(get().network, [nodeId], sectionId)) }),
-
-  setNetwork: (net) => {
-    // A fresh network may not contain the active section; return to the plant
-    // overview so we never strand the user on an empty section page.
-    if (typeof window !== 'undefined' && window.location.hash !== formatHash(PLANT_ROUTE)) {
-      window.location.hash = formatHash(PLANT_ROUTE);
-    }
-    set({ ...withStaleResult(net), selectedId: null, route: PLANT_ROUTE, activeSectionId: null });
-  },
-
-  updateValveOpening: (linkId, opening) => {
-    const net = get().network;
-    const links = net.links.map((l) =>
-      l.id === linkId && l.kind === 'valve' ? { ...l, opening } : l,
-    );
-    set(withStaleResult({ ...net, links }));
-  },
-
-  updatePumpSpeed: (linkId, ratio) => {
-    const net = get().network;
-    const links = net.links.map((l) =>
-      l.id === linkId && l.kind === 'pump' ? { ...l, speedRatio: ratio } : l,
-    );
-    set(withStaleResult({ ...net, links }));
-  },
-
-  cloneFirstSkid: () => {
-    const net = get().network;
-    if (net.subAssemblies.length === 0) return;
-    const n = net.subAssemblies.length + 1;
-    const { network } = cloneSubAssembly(net, net.subAssemblies[0].id, {
-      idSuffix: `__${n}`,
-      offset: { x: 0, y: 0, z: 14 * (n - 1) },
-      name: `Pump Skid #${n}`,
-    });
-    set({ ...withStaleResult(network), selectedId: null });
-  },
-
-  setScene: (s) => set({ scene: s }),
-  setLabInputs: (patch) => set({ labInputs: { ...get().labInputs, ...patch } }),
-  setClosureTime: (t) => set({ closureTime: t }),
-  setStepsPerFrame: (n) => set({ stepsPerFrame: n }),
-  toggleFlowViz: () => set({ flowViz: !get().flowViz }),
-  toggleSectionOverlay: () => set({ sectionOverlay: !get().sectionOverlay }),
-
-  // --- Builder ----------------------------------------------------------
-  toggleEditMode: () =>
-    set((s) => ({ editMode: !s.editMode, editTool: 'select', connectFrom: null, runFrom: null, selectedId: null })),
-  setEditTool: (t) => set({ editTool: t, connectFrom: null, runFrom: null }),
-  setBuildElevation: (y) => set({ buildElevation: y }),
-  setLinkDefaults: (patch) => set({ linkDefaults: { ...get().linkDefaults, ...patch } }),
-  cancelBuild: () => set({ connectFrom: null, runFrom: null }),
-
-  nudgeBuildHeight: (delta) => {
-    const { network, buildElevation } = get();
-    // Snap the work-plane to a nearby existing node height for easy alignment.
-    let y = buildElevation + delta;
-    for (const n of network.nodes) {
-      if (Math.abs(n.position.y - y) < 0.8) {
-        y = n.position.y;
-        break;
-      }
-    }
-    set({ buildElevation: Math.round(y * 10) / 10 });
-  },
-
-  nudgeNodeElevation: (id, delta) => {
-    const { network } = get();
-    const node = network.nodes.find((n) => n.id === id);
-    if (!node) return;
-    const newY = node.position.y + delta;
-    const patch: Partial<NetworkNode> = { position: { ...node.position, y: newY } };
-    // A tank sitting at its free surface rises with its elevation.
-    if (node.type === 'reservoir' && (node.fixedHead ?? node.position.y) === node.position.y) {
-      patch.fixedHead = newY;
-    }
-    set(withStaleResult(updateNodeOp(network, id, patch)));
-  },
-
-  placeNodeAt: (position) => {
-    const { editTool, network, activeSectionId } = get();
-    const type: NodeType = editTool === 'place-reservoir' ? 'reservoir' : 'junction';
-    // On a section page, new elements are born into that section.
-    const node = { ...makeNode(type, position, network), sectionId: activeSectionId ?? undefined };
-    set({ ...withStaleResult(addNodeOp(network, node)), selectedId: node.id });
-  },
-
-  // Pipe Run: click points to draw a connected pipeline. Snaps to a nearby
-  // existing node so runs can branch off or close loops.
-  runClickAt: (position) => {
-    const { network, runFrom, linkDefaults, activeSectionId } = get();
-    const SNAP = 1.6;
-    const near = network.nodes.find((n) => {
-      const dx = n.position.x - position.x;
-      const dy = n.position.y - position.y;
-      const dz = n.position.z - position.z;
-      return dx * dx + dy * dy + dz * dz < SNAP * SNAP;
-    });
-
-    let net = network;
-    let targetId: string;
-    if (near) {
-      targetId = near.id;
-    } else {
-      const node = { ...makeNode('junction', position, net), sectionId: activeSectionId ?? undefined };
-      net = addNodeOp(net, node);
-      targetId = node.id;
-    }
-    if (runFrom && runFrom !== targetId) {
-      const link = makeLink(runFrom, targetId, linkDefaults, net);
-      net = addLinkOp(net, link);
-    }
-    set({ ...withStaleResult(net), runFrom: targetId, selectedId: targetId });
-  },
-
-  handleNodeClick: (nodeId) => {
-    const { editMode, editTool, network, connectFrom } = get();
-    if (!editMode) {
-      set({ selectedId: nodeId });
+    if (mode === 'delete') {
+      const next = removeTileAt(grid, cell);
+      const r = recompile(next);
+      set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null, selectedTileId: null });
       return;
     }
-    if (editTool === 'delete') {
-      set({ ...withStaleResult(removeElement(network, nodeId)), selectedId: null });
+
+    if (mode === 'select') {
+      const t = tileAt(grid, cell);
+      set({ selectedTileId: t?.id ?? null });
       return;
     }
-    if (editTool === 'connect') {
-      if (!connectFrom) {
-        set({ connectFrom: nodeId, selectedId: nodeId });
-      } else if (connectFrom !== nodeId) {
-        const link = makeLink(connectFrom, nodeId, get().linkDefaults, network);
-        set({ ...withStaleResult(addLinkOp(network, link)), connectFrom: null, selectedId: link.id });
-      }
+
+    // mode === 'place'
+    const existing = tileAt(grid, cell);
+    if (existing && existing.kind === armedKind) {
+      // Placing the same kind again on an occupied cell rotates it instead
+      // of replacing it — a quicker way to orient a piece after dropping it.
+      const next = rotateTileAt(grid, cell);
+      const r = recompile(next);
+      set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null });
       return;
     }
-    if (editTool === 'run') {
-      const { runFrom, linkDefaults } = get();
-      if (runFrom && runFrom !== nodeId) {
-        const link = makeLink(runFrom, nodeId, linkDefaults, network);
-        set({ ...withStaleResult(addLinkOp(network, link)), runFrom: nodeId, selectedId: nodeId });
-      } else {
-        set({ runFrom: nodeId, selectedId: nodeId });
-      }
-      return;
-    }
-    set({ selectedId: nodeId });
+    const tile = makeTile(armedKind, cell, armedRotation, grid, tileDefaults);
+    const next = placeTile(grid, tile);
+    const r = recompile(next);
+    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null, selectedTileId: tile.id });
   },
 
-  handleLinkClick: (linkId, point) => {
-    const { editMode, editTool, network } = get();
-    if (editMode && editTool === 'delete') {
-      set({ ...withStaleResult(removeElement(network, linkId)), selectedId: null });
-      return;
-    }
-    // Cities-Skylines tap-in: in Run mode, clicking a pipe splits it at the
-    // click point and continues the run from the new junction.
-    if (editMode && editTool === 'run' && point) {
-      const link = network.links.find((l) => l.id === linkId);
-      if (link && link.kind === 'pipe') {
-        const { network: net2, newNodeId } = splitPipeOp(network, linkId, point);
-        const { runFrom, linkDefaults } = get();
-        let net3 = net2;
-        if (runFrom && newNodeId && runFrom !== newNodeId) {
-          net3 = addLinkOp(net2, makeLink(runFrom, newNodeId, linkDefaults, net2));
-        }
-        set({ ...withStaleResult(net3), runFrom: newNodeId, selectedId: newNodeId });
-        return;
-      }
-    }
-    set({ selectedId: linkId });
+  selectTile: (id) => set({ selectedTileId: id, mode: id ? 'select' : get().mode }),
+
+  updateSelectedTile: (patch) => {
+    const { grid, selectedTileId } = get();
+    if (!selectedTileId) return;
+    const next = updateTile(grid, selectedTileId, patch);
+    const r = recompile(next);
+    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null });
   },
 
-  editNode: (id, patch) => set(withStaleResult(updateNodeOp(get().network, id, patch))),
-  editLink: (id, patch) => set(withStaleResult(updateLinkOp(get().network, id, patch))),
-  editLinkKind: (id, kind) =>
-    set(withStaleResult(changeLinkKindOp(get().network, id, kind, get().linkDefaults))),
+  deleteSelected: () => {
+    const { grid, selectedTileId } = get();
+    if (!selectedTileId) return;
+    const tile = grid.tiles.find((t) => t.id === selectedTileId);
+    if (!tile) return;
+    const next = removeTileAt(grid, tile.cell);
+    const r = recompile(next);
+    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null, selectedTileId: null });
+  },
 
-  newBlankNetwork: () => {
-    if (typeof window !== 'undefined' && window.location.hash !== formatHash(PLANT_ROUTE)) {
-      window.location.hash = formatHash(PLANT_ROUTE);
-    }
+  setView: (v) => set({ view: v }),
+  panBy: (dx, dy) => set({ view: panBy(get().view, dx, dy) }),
+  zoomAt: (x, y, factor) => set({ view: zoomAt(get().view, x, y, factor) }),
+  resetView: (width, height) => {
+    const { grid } = get();
+    set({ view: defaultViewport(width, height, grid.cols, grid.rows) });
+  },
+
+  newGrid: (cols, rows, cellSize = 1) => {
+    const grid = emptyGrid(cols, rows, cellSize);
+    const r = recompile(grid);
     set({
-      ...withStaleResult(emptyNetwork(20)),
-      selectedId: null,
-      connectFrom: null,
-      route: PLANT_ROUTE,
-      activeSectionId: null,
+      grid,
+      compiled: r.compiled,
+      issues: r.issues,
+      excludedTileIds: r.excluded,
+      result: null,
+      selectedTileId: null,
+      view: defaultViewport(get().view.width, get().view.height, cols, rows),
+    });
+  },
+
+  loadGrid: (grid) => {
+    const r = recompile(grid);
+    set({
+      grid,
+      compiled: r.compiled,
+      issues: r.issues,
+      excludedTileIds: r.excluded,
+      result: null,
+      selectedTileId: null,
+      view: defaultViewport(get().view.width, get().view.height, grid.cols, grid.rows),
     });
   },
 }));
