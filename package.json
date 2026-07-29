@@ -1,9 +1,9 @@
 {
-  "name": "fluid-twin-3d",
+  "name": "fluid-twin-2d",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Industrial 3D pipeline digital twin and vulnerability analysis simulator",
+  "description": "2D pipe-network fluid simulation sandbox — grid-based puzzle editor with real hydraulic physics",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -14,17 +14,13 @@
     "lint": "eslint . --ext ts,tsx"
   },
   "dependencies": {
-    "@react-three/drei": "^9.114.0",
-    "@react-three/fiber": "^8.17.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.169.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "@types/three": "^0.169.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.3.2",
