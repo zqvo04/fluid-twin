@@ -16,7 +16,7 @@ export function Legend() {
   const toggleFlow = useAppStore((s) => s.toggleFlow);
 
   const field = useMemo(
-    () => (result ? computePressureField(grid, compiled, result.heads) : null),
+    () => (result ? computePressureField(grid, compiled, result.heads, result.links) : null),
     [grid, compiled, result],
   );
 

@@ -20,6 +20,24 @@ import { NetworkLink, PipelineNetwork, linkLength } from '../domain/network';
 /** Minimum Jacobian magnitude — keeps the Newton step well-conditioned near Q=0. */
 const MIN_SLOPE = 1e-4;
 
+/** Below this fraction of rated speed, a pump is treated as stopped rather
+ * than evaluated on its head curve (see PUMP_BLOCKED_R below). */
+const PUMP_STOPPED_SPEED = 0.02;
+
+/**
+ * Blocked-line resistance for a stopped pump. A stationary impeller — and,
+ * in nearly every real installation, a discharge check valve — keeps a
+ * stopped pump from acting as a zero-resistance bypass; without this, a
+ * network with an idle pump flows through it exactly as if it were open
+ * pipe. This value is large enough that any credible network flow produces
+ * a multi-hundred-meter head loss (forcing Q -> 0) while staying finite, the
+ * same convention used for a fully closed valve (see rFixed/kCapped below).
+ * Speed ratio is fixed for the duration of a solve (only flow is the Newton
+ * unknown), so branching on it here can't introduce a mid-iteration
+ * discontinuity the way branching on flow sign would.
+ */
+const PUMP_BLOCKED_R = 1e9;
+
 interface CompiledPipe {
   kind: 'resistive';
   /** r such that g = r * Q|Q|  (friction is recomputed each eval; see below). */
@@ -122,8 +140,15 @@ export function evaluateLink(link: CompiledLink, q: number, fluid: FluidState): 
     return { g, dgdQ };
   }
 
-  // pump: head loss = -(pump head). Derivative sign flips so the diagonal stays
-  // positive (pump head falls with flow, so -dH/dQ > 0).
+  // pump, stopped: blocked line, not a free bypass (see PUMP_BLOCKED_R).
+  if (d.speedRatio <= PUMP_STOPPED_SPEED) {
+    const g = PUMP_BLOCKED_R * q * Math.abs(q);
+    const dgdQ = Math.max(2 * PUMP_BLOCKED_R * Math.abs(q), MIN_SLOPE);
+    return { g, dgdQ };
+  }
+
+  // pump, running: head loss = -(pump head). Derivative sign flips so the
+  // diagonal stays positive (pump head falls with flow, so -dH/dQ > 0).
   const head = pumpHead(d.spec, q, d.speedRatio);
   const slope = pumpHeadSlope(d.spec, q, d.speedRatio);
   const g = -head;

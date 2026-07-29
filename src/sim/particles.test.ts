@@ -1,10 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { emptyGrid } from '../grid/types';
-import { makeTile, placeTile } from '../grid/ops';
+import { cellElevation, emptyGrid } from '../grid/types';
+import { makeTile, placeTile, updateTile } from '../grid/ops';
 import { compile } from '../grid/compile';
 import { solveSteadyState } from '../physics/steadySolver';
+import { PipelineNetwork } from '../domain/network';
 import { buildLinkGeometries, pointAtFraction } from './linkGeometry';
-import { buildFlowGraph, weightedPick, spawnParticle, stepParticles, LinkFlow, particlePosition } from './particles';
+import {
+  buildFlowGraph,
+  weightedPick,
+  spawnParticle,
+  stepParticles,
+  rebalanceOccupancy,
+  Particle,
+  LinkFlow,
+  particlePosition,
+} from './particles';
 
 /** Deterministic PRNG (mulberry32) so the statistical test is reproducible. */
 function mulberry32(seed: number): () => number {
@@ -21,16 +31,28 @@ function mulberry32(seed: number): () => number {
 function buildBranchingNetwork() {
   // source -> straight -> tee -> { straight -> sink1 (short, low resistance),
   //                                straight x3 -> sink2 (long, high resistance) }
+  // Both sinks are pinned to the same fixed head (overriding sink2's
+  // elevation-based default) and the source is given an explicit head above
+  // both, so the split is driven purely by the branches' resistance
+  // difference, not by an incidental elevation difference between them.
   let grid = emptyGrid(5, 6, 2);
-  grid = placeTile(grid, makeTile('source', { col: 0, row: 1 }, 0, grid));
+  const source = makeTile('source', { col: 0, row: 1 }, 0, grid);
+  grid = placeTile(grid, source);
   grid = placeTile(grid, makeTile('straight', { col: 1, row: 1 }, 0, grid));
   grid = placeTile(grid, makeTile('tee', { col: 2, row: 1 }, 0, grid));
   grid = placeTile(grid, makeTile('straight', { col: 3, row: 1 }, 0, grid));
-  grid = placeTile(grid, makeTile('sink', { col: 4, row: 1 }, 0, grid));
+  const sink1 = makeTile('sink', { col: 4, row: 1 }, 0, grid);
+  grid = placeTile(grid, sink1);
   grid = placeTile(grid, makeTile('straight', { col: 2, row: 2 }, 90, grid));
   grid = placeTile(grid, makeTile('straight', { col: 2, row: 3 }, 90, grid));
   grid = placeTile(grid, makeTile('straight', { col: 2, row: 4 }, 90, grid));
-  grid = placeTile(grid, makeTile('sink', { col: 2, row: 5 }, 90, grid));
+  const sink2 = makeTile('sink', { col: 2, row: 5 }, 90, grid);
+  grid = placeTile(grid, sink2);
+
+  const commonHead = cellElevation(grid, { col: 0, row: 1 });
+  grid = updateTile(grid, sink1.id, { head: commonHead });
+  grid = updateTile(grid, sink2.id, { head: commonHead });
+  grid = updateTile(grid, source.id, { head: commonHead + 4 });
   return grid;
 }
 
@@ -98,6 +120,63 @@ describe('flow particles — branch handoff matches the solved flow split', () =
       expect(p.s).toBeGreaterThanOrEqual(-1e-6);
       expect(p.s).toBeLessThanOrEqual(1 + 1e-6);
     }
+  });
+});
+
+describe('rebalanceOccupancy — population tracks flow, not pipe volume', () => {
+  it('thins out an over-occupied low-flow branch back toward its flow-proportional share', () => {
+    // A node with two outgoing links: A carries 9x the flow of B. Dwell
+    // time alone (the bug being fixed) would let a slow/long branch like B
+    // accumulate particles; occupancy should instead settle near the 90/10
+    // flow split regardless of where the particles started.
+    const network = {
+      nodes: [],
+      links: [
+        { id: 'A', kind: 'pipe', from: 'N', to: 'X' },
+        { id: 'B', kind: 'pipe', from: 'N', to: 'Y' },
+      ],
+    } as unknown as PipelineNetwork;
+    const flows = new Map<string, LinkFlow>([
+      ['A', { flow: 0.09, velocity: 1 }],
+      ['B', { flow: 0.01, velocity: 1 }],
+    ]);
+    const graph = buildFlowGraph(network, flows);
+
+    // Adversarial start: every particle sits on the low-flow branch B.
+    const particles: Particle[] = Array.from({ length: 200 }, () => ({ linkId: 'B', s: 0.5, dir: 1 }));
+    const rand = mulberry32(42);
+
+    for (let i = 0; i < 60; i++) rebalanceOccupancy(particles, graph, rand);
+
+    const countA = particles.filter((p) => p.linkId === 'A').length;
+    const countB = particles.filter((p) => p.linkId === 'B').length;
+    expect(countA + countB).toBe(200); // conserves total count
+    // Should have moved decisively toward the 90/10 flow split.
+    expect(countA / 200).toBeGreaterThan(0.7);
+    expect(countB / 200).toBeLessThan(0.3);
+  });
+
+  it('is a no-op on an already flow-proportional population', () => {
+    const network = {
+      nodes: [],
+      links: [
+        { id: 'A', kind: 'pipe', from: 'N', to: 'X' },
+        { id: 'B', kind: 'pipe', from: 'N', to: 'Y' },
+      ],
+    } as unknown as PipelineNetwork;
+    const flows = new Map<string, LinkFlow>([
+      ['A', { flow: 0.05, velocity: 1 }],
+      ['B', { flow: 0.05, velocity: 1 }],
+    ]);
+    const graph = buildFlowGraph(network, flows);
+    const particles: Particle[] = [
+      ...Array.from({ length: 100 }, (): Particle => ({ linkId: 'A', s: 0.5, dir: 1 })),
+      ...Array.from({ length: 100 }, (): Particle => ({ linkId: 'B', s: 0.5, dir: 1 })),
+    ];
+    const rand = mulberry32(1);
+    rebalanceOccupancy(particles, graph, rand);
+    expect(particles.filter((p) => p.linkId === 'A').length).toBe(100);
+    expect(particles.filter((p) => p.linkId === 'B').length).toBe(100);
   });
 });
 

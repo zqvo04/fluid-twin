@@ -166,6 +166,29 @@ export function generateReport(net: PipelineNetwork, result: SteadyResult, fluid
   };
 }
 
+/** A UI-facing finding: a non-"ok" ReportFinding trimmed to what a solve
+ * response needs to carry (severity + message + the link/component it
+ * refers to), for panels that don't care about the full Report shape. */
+export interface UiFinding {
+  severity: 'error' | 'warning';
+  message: string;
+  ref?: string;
+}
+
+/** Drop "ok" (no news) findings and translate the rest for display: a
+ * "violation" is solver-adjacent enough to flag as an error, a "warning"
+ * stays a warning. The governing code clause is folded into the message
+ * since UiFinding has no separate field for it. */
+export function reportFindingsToUiFindings(findings: ReportFinding[]): UiFinding[] {
+  return findings
+    .filter((f) => f.severity !== 'ok')
+    .map((f) => ({
+      severity: f.severity === 'violation' ? 'error' : 'warning',
+      message: `${f.message} (${f.clause})`,
+      ref: f.component !== '—' ? f.component : undefined,
+    }));
+}
+
 // --- Renderers -----------------------------------------------------------
 
 export function reportToCsv(r: Report): string {

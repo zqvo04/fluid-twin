@@ -27,7 +27,7 @@ import {
 } from '../domain/network';
 import { FittingType } from '../domain/catalog/fittings';
 import { Cell, Direction, GridModel, Tile, cellElevation, cellKey } from './types';
-import { isPassThroughKind, tilePorts } from './ports';
+import { isPassThroughKind, opposite, tilePorts } from './ports';
 import { tileMapByCell, traceRun } from './merge';
 
 export interface CompileResult {
@@ -51,6 +51,23 @@ function nodeIdForPort(tile: Tile, dir: Direction): string {
     return ports.indexOf(dir) === 0 ? `${tile.id}:a` : `${tile.id}:b`;
   }
   return tile.id;
+}
+
+/**
+ * Minor-loss fitting a run picks up at a tee/cross hub end. A tee's odd
+ * (non-opposed) port is always its branch leg — Crane TP-410's teeBranch K
+ * applies there regardless of which other leg the flow pairs with, so this
+ * is a per-leg property, not a per-flow-path one, and can be read straight
+ * off the tile's own ports. A cross has no odd leg (every port has an
+ * opposite), so every leg gets teeBranch: crosses are inherently lossier
+ * than a tee's run legs. This can't bias one exit direction over another
+ * the way a real cross's flow split would — that needs sub-node topology
+ * (splitting the hub into an internal micro-network), out of scope here.
+ */
+function junctionFitting(tile: Tile, dir: Direction): FittingType | null {
+  if (tile.kind === 'tee') return tilePorts(tile).includes(opposite(dir)) ? 'teeRun' : 'teeBranch';
+  if (tile.kind === 'cross') return 'teeBranch';
+  return null;
 }
 
 function hubNodes(tile: Tile, grid: GridModel): NetworkNode[] {
@@ -163,6 +180,10 @@ export function compile(grid: GridModel): CompileResult {
       const fittings: FittingType[] = result.run.tiles
         .filter((t) => t.kind === 'elbow')
         .map((): FittingType => 'elbow90');
+      const startFitting = junctionFitting(tile, dir);
+      if (startFitting) fittings.push(startFitting);
+      const endFitting = junctionFitting(endTile, result.run.endDir);
+      if (endFitting) fittings.push(endFitting);
 
       // Size/schedule of the run: the first pass-through tile's, else the
       // originating hub's (a direct hub-to-hub connector with no pipe tile

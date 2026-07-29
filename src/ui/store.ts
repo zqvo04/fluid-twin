@@ -25,6 +25,9 @@ export interface SteadyUiResult {
   residual: number;
   heads: Map<string, number>;
   links: Map<string, { flow: number; velocity: number; headLoss: number }>;
+  /** Engineering findings (hoop stress, erosion, NPSH, valve cavitation) —
+   * informational only, unlike `issues`, which gates re-solving. */
+  findings: ValidationIssue[];
 }
 
 export interface TransientHistoryPoint {
@@ -192,6 +195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         residual: r.residual,
         heads: new Map(r.heads),
         links: new Map(r.links),
+        findings: r.findings,
       },
     }),
   clearResult: () => set({ result: null, solving: false }),

@@ -50,6 +50,9 @@ export interface PressureTint {
   t: number;
   /** Raw gauge pressure [Pa] — negative draws a cavitation warning mark. */
   pa: number;
+  /** Per-port override of `t` (a valve's upstream/downstream sides render
+   * as distinct colors instead of one averaged tone). */
+  perPort?: Partial<Record<Direction, number>>;
 }
 
 /** Draw a tile. `excluded` dims it (isolated / unconnected from the solve);
@@ -79,16 +82,24 @@ export function drawTile(
 
   // --- Pipe body: stubs from center to each port, or a curved bend for a
   // two-port tile whose ports are perpendicular (an elbow). ---------------
+  const stubFill = (d: Direction) => {
+    const t = pressure?.perPort?.[d];
+    return t === undefined ? fill : pressureColor(t);
+  };
+  const stubOutline = (d: Direction) => {
+    const t = pressure?.perPort?.[d];
+    return t === undefined ? outline : pressureOutlineColor(t);
+  };
   const drawStub = (d: Direction) => {
     const [ex, ey] = edgePoint(cx, cy, half, d);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(ex, ey);
     ctx.lineWidth = pipeW + 4;
-    ctx.strokeStyle = outline;
+    ctx.strokeStyle = stubOutline(d);
     ctx.stroke();
     ctx.lineWidth = pipeW;
-    ctx.strokeStyle = fill;
+    ctx.strokeStyle = stubFill(d);
     ctx.stroke();
   };
 

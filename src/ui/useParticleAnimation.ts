@@ -6,7 +6,16 @@
 
 import { RefObject, useEffect, useRef } from 'react';
 import { useAppStore } from './store';
-import { buildFlowGraph, spawnParticle, stepParticles, Particle, FlowGraph, LinkFlow } from '../sim/particles';
+import {
+  buildFlowGraph,
+  spawnParticle,
+  stepParticles,
+  rebalanceOccupancy,
+  REBALANCE_INTERVAL_S,
+  Particle,
+  FlowGraph,
+  LinkFlow,
+} from '../sim/particles';
 import { buildLinkGeometries, LinkGeometry } from '../sim/linkGeometry';
 import { drawParticles } from '../render/fluidLayer';
 
@@ -49,6 +58,8 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
     particlesRef.current = particles;
   }, [grid, compiled, result, showFlow]);
 
+  const rebalanceAccum = useRef(0);
+
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
@@ -62,6 +73,11 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
         const graph = graphRef.current;
         if (graph) {
           stepParticles(particlesRef.current, geometriesRef.current, graph, flowsRef.current, dt, Math.random);
+          rebalanceAccum.current += dt;
+          if (rebalanceAccum.current >= REBALANCE_INTERVAL_S) {
+            rebalanceAccum.current = 0;
+            rebalanceOccupancy(particlesRef.current, graph, Math.random);
+          }
         }
         const ctx = canvas.getContext('2d');
         if (ctx) {

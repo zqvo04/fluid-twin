@@ -64,7 +64,10 @@ export function makeTile(
     case 'pump':
       return { ...base, kind: 'pump', spec: PUMP_50M, speedRatio: 1 };
     case 'source':
-      return { ...base, kind: 'source', head: cellElevation(grid, cell) + 20 };
+      // No free head above grade: a newly placed IN is an open tank at its
+      // own elevation, so flow to a same-elevation OUT needs a pump — head
+      // is still freely editable in the Inspector for a "water tower" scenario.
+      return { ...base, kind: 'source', head: cellElevation(grid, cell) };
     case 'sink':
       return { ...base, kind: 'sink', mode: 'head', head: cellElevation(grid, cell), demand: 0 };
   }

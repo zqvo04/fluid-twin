@@ -203,3 +203,36 @@ describe('GGA steady-state solver — valve throttling', () => {
     expect(qShut).toBeGreaterThan(0);
   });
 });
+
+describe('GGA steady-state solver — a stopped pump blocks flow instead of bypassing it', () => {
+  // Two reservoirs at the SAME head (no natural driving force at all) joined
+  // through a pump. With the pump off, this must settle to ~zero flow rather
+  // than behaving like a free, resistance-less connector.
+  function buildWithSpeed(speedRatio: number): PipelineNetwork {
+    return {
+      temperatureC: 20,
+      subAssemblies: [],
+      nodes: [
+        { id: 'A', type: 'reservoir', position: { x: 0, y: 10, z: 0 }, fixedHead: 10 },
+        { id: 'J', type: 'junction', position: { x: 1, y: 10, z: 0 }, demand: 0 },
+        { id: 'B', type: 'reservoir', position: { x: 100, y: 10, z: 0 }, fixedHead: 10 },
+      ],
+      links: [
+        { id: 'PUMP', kind: 'pump', from: 'A', to: 'J', spec: PUMP_50M, speedRatio },
+        { id: 'P', kind: 'pipe', from: 'J', to: 'B', nps: '4"', schedule: '40', length: 100 },
+      ],
+    };
+  }
+
+  it('stopped pump (speedRatio 0) yields negligible flow', () => {
+    const res = solveSteadyState(buildWithSpeed(0));
+    expect(res.converged).toBe(true);
+    expect(Math.abs(res.links.get('P')!.flow)).toBeLessThan(1e-6);
+  });
+
+  it('running the pump (speedRatio 1) drives real flow with equal reservoir heads', () => {
+    const res = solveSteadyState(buildWithSpeed(1));
+    expect(res.converged).toBe(true);
+    expect(res.links.get('P')!.flow).toBeGreaterThan(1e-3);
+  });
+});

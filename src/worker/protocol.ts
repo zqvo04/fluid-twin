@@ -64,6 +64,16 @@ export type WorkerRequest =
   | StopTransientRequest
   | StartNetTransientRequest;
 
+/** A non-"ok" engineering finding from analysis/report.ts's generateReport
+ * (ASME B31.3 hoop stress, API RP 14E erosion, NPSH margin, valve
+ * cavitation). Purely informational for the UI — unlike the structural
+ * ValidationIssue list, it never blocks re-solving. */
+export interface SolveFinding {
+  severity: 'error' | 'warning';
+  message: string;
+  ref?: string;
+}
+
 export interface SolveSteadyResponse {
   type: 'SOLVE_STEADY_RESULT';
   requestId: number;
@@ -74,6 +84,7 @@ export interface SolveSteadyResponse {
   heads: Array<[string, number]>;
   /** Link id -> { flow, velocity, headLoss }. */
   links: Array<[string, { flow: number; velocity: number; headLoss: number }]>;
+  findings: SolveFinding[];
 }
 
 export interface PongResponse {

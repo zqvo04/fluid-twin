@@ -8,6 +8,7 @@
 import { solveSteadyState } from '../physics/steadySolver';
 import { WaterHammerSim } from '../physics/transient';
 import { NetworkTransientSim } from '../physics/networkTransient';
+import { generateReport, reportFindingsToUiFindings } from '../analysis/report';
 import { WorkerRequest, WorkerResponse, StartTransientRequest, StartNetTransientRequest } from './protocol';
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -156,6 +157,13 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       case 'SOLVE_STEADY': {
         const result = solveSteadyState(msg.network);
+        // Engineering findings (hoop stress, erosion, NPSH, valve cavitation)
+        // are only meaningful on a converged solve — a diverged result's
+        // flows/heads aren't physical, so surfacing "violations" from them
+        // would be noise, not signal.
+        const findings = result.converged
+          ? reportFindingsToUiFindings(generateReport(msg.network, result, result.fluid).findings)
+          : [];
         const res: WorkerResponse = {
           type: 'SOLVE_STEADY_RESULT',
           requestId: msg.requestId,
@@ -167,6 +175,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
             id,
             { flow: r.flow, velocity: r.velocity, headLoss: r.headLoss },
           ]),
+          findings,
         };
         ctx.postMessage(res);
         break;

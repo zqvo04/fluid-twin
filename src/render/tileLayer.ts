@@ -61,7 +61,7 @@ export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gr
   for (const tile of grid.tiles) {
     const { x, y } = cellToScreen(view, tile.cell);
     const excluded = opts.excludedTileIds?.has(tile.id) ?? false;
-    const pressure = showPressure ? tilePressure(tile.id, opts.compiled!, opts.pressureField!) : null;
+    const pressure = showPressure ? tilePressure(tile.id, grid, opts.compiled!, opts.pressureField!) : null;
     drawTile(ctx, tile, { x, y, size: s }, excluded, pressure);
 
     if (opts.selectedTileId === tile.id) {
