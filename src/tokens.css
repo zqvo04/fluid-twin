@@ -1,62 +1,51 @@
-/* Hallmark · macrostructure: Workbench (app shell) · tone: technical · anchor hue: cobalt
- * genre: modern-minimal · theme: Cobalt-dark (near-neutral cool graphite · cobalt accent · grotesk+mono)
- * Design tokens for the FluidTwin platform. Every color/font/space in the app
- * references a token here — no inline hex or font-family in component CSS.
- * Fonts are system stacks on purpose: the app is cross-origin-isolated (COEP
- * require-corp) so external font fetches are blocked, and a mono numeric face
- * is exactly right for an engineering instrument. OKLCH throughout.
- */
+/* FluidTwin 2D — soft/playful puzzle-editor theme. OKLCH throughout.
+ * Every color/font/space in the app references a token here. */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* --- Paper: cool graphite surface layers (dark instrument) --- */
-  --color-paper-0: oklch(17% 0.012 250);   /* app background */
-  --color-paper-1: oklch(20% 0.014 250);   /* panel base */
-  --color-paper-2: oklch(24% 0.016 250);   /* raised / cards */
-  --color-paper-3: oklch(29% 0.018 250);   /* controls, hovered */
-  --color-paper-glass: oklch(20% 0.014 250 / 0.82); /* blurred overlay panels */
+  /* --- Paper: soft aqua-tinted surfaces (light instrument) --- */
+  --color-paper-0: oklch(96% 0.012 200);   /* app background */
+  --color-paper-1: oklch(99% 0.006 200);   /* panel base */
+  --color-paper-2: oklch(97% 0.010 200);   /* raised / cards */
+  --color-paper-3: oklch(94% 0.014 200);   /* controls, hovered */
+  --color-paper-glass: oklch(99% 0.006 200 / 0.86); /* blurred overlay panels */
 
   /* --- Ink: text --- */
-  --color-ink-0: oklch(96% 0.006 250);      /* primary text */
-  --color-ink-1: oklch(78% 0.010 250);      /* secondary */
-  --color-ink-2: oklch(62% 0.012 250);      /* muted labels */
-  --color-ink-3: oklch(48% 0.012 250);      /* faint / disabled */
+  --color-ink-0: oklch(26% 0.02 220);      /* primary text */
+  --color-ink-1: oklch(40% 0.02 220);      /* secondary */
+  --color-ink-2: oklch(54% 0.018 220);     /* muted labels */
+  --color-ink-3: oklch(68% 0.014 220);     /* faint / disabled */
 
   /* --- Lines --- */
-  --color-line: oklch(30% 0.016 250);
-  --color-line-soft: oklch(26% 0.014 250);
-  --color-line-strong: oklch(38% 0.020 250);
+  --color-line: oklch(90% 0.012 200);
+  --color-line-soft: oklch(93% 0.010 200);
+  --color-line-strong: oklch(82% 0.016 200);
 
-  /* --- Accent: cobalt --- */
-  --color-accent: oklch(62% 0.18 258);
-  --color-accent-hi: oklch(70% 0.17 258);
-  --color-accent-dim: oklch(45% 0.12 258);
-  --color-accent-ink: oklch(97% 0.02 258);  /* text on accent fill */
-  --color-accent-ghost: oklch(62% 0.18 258 / 0.14);
+  /* --- Accent: teal --- */
+  --color-accent: oklch(62% 0.11 190);
+  --color-accent-hi: oklch(68% 0.12 190);
+  --color-accent-dim: oklch(50% 0.09 190);
+  --color-accent-ink: oklch(99% 0.01 190);  /* text on accent fill */
+  --color-accent-ghost: oklch(62% 0.11 190 / 0.14);
 
-  /* --- Semantic status (engineering data demands these) --- */
-  --color-ok: oklch(74% 0.16 158);
-  --color-ok-ghost: oklch(74% 0.16 158 / 0.14);
-  --color-warn: oklch(78% 0.15 78);
-  --color-warn-ghost: oklch(78% 0.15 78 / 0.15);
-  --color-danger: oklch(66% 0.20 26);
-  --color-danger-ghost: oklch(66% 0.20 26 / 0.16);
-  --color-info: oklch(74% 0.13 220);
+  /* --- Semantic status --- */
+  --color-ok: oklch(66% 0.15 155);
+  --color-ok-ghost: oklch(66% 0.15 155 / 0.14);
+  --color-warn: oklch(74% 0.15 78);
+  --color-warn-ghost: oklch(74% 0.15 78 / 0.16);
+  --color-danger: oklch(62% 0.19 22);
+  --color-danger-ghost: oklch(62% 0.19 22 / 0.14);
+  --color-info: oklch(64% 0.12 230);
 
-  /* --- Data viz ramp anchors (pressure low→high) --- */
-  --color-cool: oklch(64% 0.15 240);
-  --color-hot: oklch(64% 0.20 26);
-
-  /* --- Focus ring (never animated; ≥3:1) --- */
-  --color-focus: oklch(80% 0.14 258);
+  /* --- Focus ring --- */
+  --color-focus: oklch(62% 0.11 190);
 
   /* --- Type --- */
   --font-display: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, monospace;
 
-  /* Type scale */
   --text-xs: 10.5px;
   --text-sm: 12px;
   --text-base: 13px;
@@ -64,9 +53,7 @@
   --text-lg: 16px;
   --text-xl: 19px;
   --text-2xl: 24px;
-  --text-display: 30px;
 
-  /* --- Spacing (4pt) --- */
   --space-2xs: 2px;
   --space-xs: 4px;
   --space-sm: 8px;
@@ -74,23 +61,19 @@
   --space-lg: 16px;
   --space-xl: 24px;
   --space-2xl: 32px;
-  --space-3xl: 48px;
 
-  /* --- Radius --- */
-  --radius-xs: 5px;
-  --radius-sm: 8px;
-  --radius-md: 11px;
-  --radius-lg: 16px;
+  /* Generous radii — the whole app leans soft/rounded. */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
   --radius-pill: 999px;
 
-  /* --- Elevation --- */
-  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
-  --shadow-md: 0 8px 24px oklch(0% 0 0 / 0.36);
-  --shadow-lg: 0 16px 48px oklch(0% 0 0 / 0.48);
+  --shadow-sm: 0 1px 3px oklch(45% 0.03 220 / 0.10);
+  --shadow-md: 0 6px 20px oklch(45% 0.03 220 / 0.12);
+  --shadow-lg: 0 14px 40px oklch(45% 0.03 220 / 0.16);
 
-  /* --- Motion --- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fast: 120ms;
   --dur-mid: 200ms;
