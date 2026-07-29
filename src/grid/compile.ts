@@ -169,6 +169,11 @@ export function compile(grid: GridModel): CompileResult {
       // between them).
       const spec = result.run.tiles[0] ?? tile;
 
+      // A direct hub-to-hub connector (no pass-through tiles) is a real, if
+      // physically negligible, pipe length — never exactly 0. The steady
+      // solver is fine with 0 (friction is floored elsewhere), but the MOC
+      // transient solver divides by the wave-travel time, so a literal 0
+      // would produce a zero wave speed and NaN out on the first step.
       runCounter += 1;
       const link: PipeLink = {
         id: `RUN${runCounter}`,
@@ -177,7 +182,7 @@ export function compile(grid: GridModel): CompileResult {
         to: toNode,
         nps: spec.nps,
         schedule: spec.schedule,
-        length: result.run.tiles.length * grid.cellSize,
+        length: Math.max(result.run.tiles.length * grid.cellSize, grid.cellSize * 0.1),
         fittings: fittings.length ? fittings : undefined,
       };
       links.push(link);

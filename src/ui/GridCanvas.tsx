@@ -26,6 +26,8 @@ export function GridCanvas() {
   const compiled = useAppStore((s) => s.compiled);
   const result = useAppStore((s) => s.result);
   const showPressure = useAppStore((s) => s.showPressure);
+  const transientHeads = useAppStore((s) => s.transient.heads);
+  const transientActive = useAppStore((s) => s.transient.running || s.transient.history.length > 0);
 
   const setHoverCell = useAppStore((s) => s.setHoverCell);
   const clickCell = useAppStore((s) => s.clickCell);
@@ -67,10 +69,14 @@ export function GridCanvas() {
   const ghostTile =
     mode === 'place' ? makeTile(armedKind, hoverCell ?? { col: -1, row: -1 }, armedRotation, grid, tileDefaults ?? DEFAULT_TILE_DEFAULTS) : null;
 
-  const pressureField = useMemo(
-    () => (showPressure && result ? computePressureField(grid, compiled, result.heads) : null),
-    [showPressure, result, grid, compiled],
-  );
+  // During a transient run, the streamed node heads drive the pressure
+  // overlay instead of the steady result — the same colormap shows the
+  // surge propagate live.
+  const pressureField = useMemo(() => {
+    if (!showPressure) return null;
+    if (transientActive && transientHeads) return computePressureField(grid, compiled, transientHeads);
+    return result ? computePressureField(grid, compiled, result.heads) : null;
+  }, [showPressure, result, grid, compiled, transientActive, transientHeads]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

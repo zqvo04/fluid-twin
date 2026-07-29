@@ -500,6 +500,63 @@ button.danger:hover {
 }
 
 /* ===================================================================
+   Transient (water hammer) panel
+   =================================================================== */
+.transient-panel {
+  left: var(--space-lg);
+  bottom: var(--space-lg);
+  top: auto;
+  width: 260px;
+  max-height: 60vh;
+}
+
+.hint {
+  margin: var(--space-sm) 0 4px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.target-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.target-list button {
+  font-size: var(--text-xs);
+  padding: 5px 8px;
+}
+
+.transient-chart {
+  display: block;
+  margin-top: var(--space-sm);
+  border-radius: var(--radius-xs);
+  background: var(--color-paper-2);
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-legend .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ===================================================================
    Scrollbars
    =================================================================== */
 .panel::-webkit-scrollbar {

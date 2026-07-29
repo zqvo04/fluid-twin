@@ -66,7 +66,7 @@ describe('grid compiler — elbow folds into the run as a fitting', () => {
 });
 
 describe('grid compiler — tee junction', () => {
-  it('creates one node with three links, including a zero-length direct connector', () => {
+  it('creates one node with three links, including a near-zero-length direct connector', () => {
     let grid = emptyGrid(3, 1, 1);
     ({ grid } = place(grid, 'source', { col: 0, row: 0 }, ['E']));
     const teePlacement = place(grid, 'tee', { col: 1, row: 0 }, ['W', 'E', 'N']);
@@ -78,10 +78,12 @@ describe('grid compiler — tee junction', () => {
 
     const { network, tileNodes } = compile(grid);
     expect(network.nodes).toHaveLength(3); // source, tee, sink
-    expect(network.links).toHaveLength(2); // source-tee, tee-sink (both zero-length direct)
+    expect(network.links).toHaveLength(2); // source-tee, tee-sink (both direct connectors)
     for (const l of network.links) {
       expect(l.kind).toBe('pipe');
-      if (l.kind === 'pipe') expect(l.length).toBe(0);
+      // Floored to a small positive length (not exactly 0) so the MOC
+      // transient solver never sees a zero wave-travel time on this link.
+      if (l.kind === 'pipe') expect(l.length).toBeCloseTo(grid.cellSize * 0.1);
     }
     expect(tileNodes.get(tee.id)).toEqual([tee.id]);
   });
