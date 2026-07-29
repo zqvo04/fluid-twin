@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from './store';
 import { drawGrid } from '../render/tileLayer';
 import { screenToCell, zoomAt, panBy } from '../render/viewport';
 import { makeTile, DEFAULT_TILE_DEFAULTS } from '../grid/ops';
+import { computePressureField } from '../render/pressureField';
 
 export function GridCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,6 +19,9 @@ export function GridCanvas() {
   const armedRotation = useAppStore((s) => s.armedRotation);
   const mode = useAppStore((s) => s.mode);
   const tileDefaults = useAppStore((s) => s.tileDefaults);
+  const compiled = useAppStore((s) => s.compiled);
+  const result = useAppStore((s) => s.result);
+  const showPressure = useAppStore((s) => s.showPressure);
 
   const setHoverCell = useAppStore((s) => s.setHoverCell);
   const clickCell = useAppStore((s) => s.clickCell);
@@ -56,6 +60,11 @@ export function GridCanvas() {
   const ghostTile =
     mode === 'place' ? makeTile(armedKind, hoverCell ?? { col: -1, row: -1 }, armedRotation, grid, tileDefaults ?? DEFAULT_TILE_DEFAULTS) : null;
 
+  const pressureField = useMemo(
+    () => (showPressure && result ? computePressureField(grid, compiled, result.heads) : null),
+    [showPressure, result, grid, compiled],
+  );
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,10 +77,12 @@ export function GridCanvas() {
       selectedTileId,
       excludedTileIds,
       ghostTile,
+      compiled,
+      pressureField,
     });
     // ghostTile is derived fresh each render from hoverCell/armedKind/etc, so
     // it is intentionally excluded from the dep list to avoid an identity churn.
-  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation]);
+  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField]);
 
   const eventCell = useCallback(
     (e: React.MouseEvent) => {

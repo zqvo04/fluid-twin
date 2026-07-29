@@ -42,20 +42,33 @@ const PRESSURE_STOPS: Array<[number, [number, number, number]]> = [
   [1.0, [225, 60, 60]], // red (high)
 ];
 
-/** Perceptual pressure ramp: t in [0,1] -> "rgb(r,g,b)". Pure function, no Canvas/DOM dependency. */
-export function pressureColor(t: number): string {
+function pressureRgb(t: number): [number, number, number] {
   const x = Math.max(0, Math.min(1, t));
   for (let i = 0; i < PRESSURE_STOPS.length - 1; i++) {
     const [t0, c0] = PRESSURE_STOPS[i];
     const [t1, c1] = PRESSURE_STOPS[i + 1];
     if (x >= t0 && x <= t1) {
       const f = (x - t0) / (t1 - t0);
-      const r = Math.round(c0[0] + (c1[0] - c0[0]) * f);
-      const g = Math.round(c0[1] + (c1[1] - c0[1]) * f);
-      const b = Math.round(c0[2] + (c1[2] - c0[2]) * f);
-      return `rgb(${r}, ${g}, ${b})`;
+      return [
+        Math.round(c0[0] + (c1[0] - c0[0]) * f),
+        Math.round(c0[1] + (c1[1] - c0[1]) * f),
+        Math.round(c0[2] + (c1[2] - c0[2]) * f),
+      ];
     }
   }
-  const [, c] = PRESSURE_STOPS[PRESSURE_STOPS.length - 1];
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  return PRESSURE_STOPS[PRESSURE_STOPS.length - 1][1];
 }
+
+/** Perceptual pressure ramp: t in [0,1] -> "rgb(r,g,b)". Pure function, no Canvas/DOM dependency. */
+export function pressureColor(t: number): string {
+  const [r, g, b] = pressureRgb(t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** A darker shade of the same pressure color, for the tile outline. */
+export function pressureOutlineColor(t: number): string {
+  const [r, g, b] = pressureRgb(t);
+  return `rgb(${Math.round(r * 0.65)}, ${Math.round(g * 0.65)}, ${Math.round(b * 0.65)})`;
+}
+
+export const CAVITATION_WARNING = '#8b2fc9';

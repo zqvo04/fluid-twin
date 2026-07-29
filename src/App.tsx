@@ -3,9 +3,13 @@ import { GridCanvas } from './ui/GridCanvas';
 import { Palette } from './ui/Palette';
 import { Inspector } from './ui/Inspector';
 import { Toolbar } from './ui/Toolbar';
+import { Legend } from './ui/Legend';
 import { useAppStore } from './ui/store';
+import { useAutoSolve } from './ui/useAutoSolve';
 
 export default function App() {
+  useAutoSolve();
+
   const rotateArmed = useAppStore((s) => s.rotateArmed);
   const setMode = useAppStore((s) => s.setMode);
   const selectedTileId = useAppStore((s) => s.selectedTileId);
@@ -31,6 +35,7 @@ export default function App() {
       <Toolbar />
       <Palette />
       <Inspector />
+      <Legend />
     </div>
   );
 }

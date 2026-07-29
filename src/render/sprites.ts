@@ -8,6 +8,7 @@
 import { Direction, Tile } from '../grid/types';
 import { tilePorts } from '../grid/ports';
 import {
+  CAVITATION_WARNING,
   EXCLUDED_FILL,
   EXCLUDED_OUTLINE,
   LABEL_INK,
@@ -22,6 +23,8 @@ import {
   SOURCE_OUTLINE,
   VALVE_FILL,
   VALVE_OUTLINE,
+  pressureColor,
+  pressureOutlineColor,
 } from './theme';
 
 export interface TileRect {
@@ -42,8 +45,24 @@ function edgePoint(cx: number, cy: number, half: number, d: Direction): [number,
   return [cx + dx * half, cy + dy * half];
 }
 
-/** Draw a tile. `excluded` dims it (isolated / unconnected from the solve). */
-export function drawTile(ctx: CanvasRenderingContext2D, tile: Tile, rect: TileRect, excluded = false): void {
+export interface PressureTint {
+  /** Normalized 0..1 against the current field range. */
+  t: number;
+  /** Raw gauge pressure [Pa] — negative draws a cavitation warning mark. */
+  pa: number;
+}
+
+/** Draw a tile. `excluded` dims it (isolated / unconnected from the solve);
+ * `pressure` tints the pipe body by the solved pressure field instead of
+ * the default pipe color (kind-specific ornaments keep their own color so
+ * a valve/pump/source/sink stays identifiable regardless of the overlay). */
+export function drawTile(
+  ctx: CanvasRenderingContext2D,
+  tile: Tile,
+  rect: TileRect,
+  excluded = false,
+  pressure?: PressureTint | null,
+): void {
   const { x, y, size } = rect;
   const cx = x + size / 2;
   const cy = y + size / 2;
@@ -51,8 +70,8 @@ export function drawTile(ctx: CanvasRenderingContext2D, tile: Tile, rect: TileRe
   const pipeW = size * 0.32;
   const ports = tilePorts(tile);
 
-  const fill = excluded ? EXCLUDED_FILL : PIPE_FILL;
-  const outline = excluded ? EXCLUDED_OUTLINE : PIPE_OUTLINE;
+  const fill = excluded ? EXCLUDED_FILL : pressure ? pressureColor(pressure.t) : PIPE_FILL;
+  const outline = excluded ? EXCLUDED_OUTLINE : pressure ? pressureOutlineColor(pressure.t) : PIPE_OUTLINE;
 
   ctx.save();
   ctx.lineCap = 'round';
@@ -86,15 +105,18 @@ export function drawTile(ctx: CanvasRenderingContext2D, tile: Tile, rect: TileRe
     ctx.lineWidth = pipeW;
     ctx.strokeStyle = fill;
     ctx.stroke();
-    // Soft highlight stripe for a rounded/glossy feel.
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.quadraticCurveTo(cx, cy, bx, by);
-    ctx.lineWidth = pipeW * 0.35;
-    ctx.strokeStyle = PIPE_HIGHLIGHT;
-    ctx.globalAlpha = excluded ? 0 : 0.6;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    // Soft highlight stripe for a rounded/glossy feel (skipped under a
+    // pressure tint — a fixed pink gloss would fight the data color).
+    if (!pressure) {
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cx, cy, bx, by);
+      ctx.lineWidth = pipeW * 0.35;
+      ctx.strokeStyle = PIPE_HIGHLIGHT;
+      ctx.globalAlpha = excluded ? 0 : 0.6;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   } else {
     for (const d of ports) drawStub(d);
     if (ports.length >= 3) {
@@ -129,6 +151,16 @@ export function drawTile(ctx: CanvasRenderingContext2D, tile: Tile, rect: TileRe
       break;
     default:
       break;
+  }
+
+  if (pressure && !excluded && pressure.pa < 0) {
+    ctx.beginPath();
+    ctx.arc(x + size * 0.16, y + size * 0.16, size * 0.09, 0, Math.PI * 2);
+    ctx.fillStyle = CAVITATION_WARNING;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
   }
 
   ctx.restore();

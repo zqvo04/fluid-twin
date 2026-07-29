@@ -10,6 +10,8 @@ import { Cell } from '../grid/types';
 import { cellSizePx, cellToScreen, Viewport } from './viewport';
 import { drawTile } from './sprites';
 import { CANVAS_BG, GRID_LINE, GRID_LINE_STRONG, HOVER_FILL, SELECT_RING } from './theme';
+import { CompileResult } from '../grid/compile';
+import { PressureField, tilePressure } from './pressureField';
 
 export interface DrawOptions {
   hoverCell?: Cell | null;
@@ -17,6 +19,9 @@ export interface DrawOptions {
   /** Tile ids excluded from the last compile (dangling/isolated) — dimmed. */
   excludedTileIds?: Set<string>;
   ghostTile?: Tile | null;
+  /** When set (with `pressureField`), tiles are tinted by solved pressure. */
+  compiled?: CompileResult | null;
+  pressureField?: PressureField | null;
 }
 
 export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: GridModel, opts: DrawOptions = {}): void {
@@ -51,10 +56,13 @@ export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gr
   ctx.lineWidth = 2;
   ctx.strokeRect(originX, originY, gridPxW, gridPxH);
 
+  const showPressure = opts.compiled && opts.pressureField;
+
   for (const tile of grid.tiles) {
     const { x, y } = cellToScreen(view, tile.cell);
     const excluded = opts.excludedTileIds?.has(tile.id) ?? false;
-    drawTile(ctx, tile, { x, y, size: s }, excluded);
+    const pressure = showPressure ? tilePressure(tile.id, opts.compiled!, opts.pressureField!) : null;
+    drawTile(ctx, tile, { x, y, size: s }, excluded, pressure);
 
     if (opts.selectedTileId === tile.id) {
       ctx.save();

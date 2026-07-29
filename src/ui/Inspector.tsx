@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { useAppStore } from './store';
 import { NOMINAL_SIZES } from '../domain/catalog/pipes';
 import { VALVE_TYPES } from '../domain/catalog/valves';
+import { computePressureField, tilePressure } from '../render/pressureField';
 
 const KIND_LABEL: Record<string, string> = {
   straight: '직관',
@@ -16,11 +18,23 @@ const KIND_LABEL: Record<string, string> = {
 export function Inspector() {
   const selectedTileId = useAppStore((s) => s.selectedTileId);
   const grid = useAppStore((s) => s.grid);
+  const compiled = useAppStore((s) => s.compiled);
+  const result = useAppStore((s) => s.result);
   const updateSelectedTile = useAppStore((s) => s.updateSelectedTile);
   const deleteSelected = useAppStore((s) => s.deleteSelected);
   const selectTile = useAppStore((s) => s.selectTile);
 
   const tile = grid.tiles.find((t) => t.id === selectedTileId);
+
+  const readout = useMemo(() => {
+    if (!tile || !result) return null;
+    const field = computePressureField(grid, compiled, result.heads);
+    const p = tilePressure(tile.id, compiled, field);
+    const linkId = compiled.tileLink.get(tile.id);
+    const link = linkId ? result.links.get(linkId) : undefined;
+    return { pressureKPa: p ? p.pa / 1000 : null, flow: link?.flow ?? null, velocity: link?.velocity ?? null };
+  }, [tile, result, grid, compiled]);
+
   if (!tile) return null;
 
   return (
@@ -34,6 +48,29 @@ export function Inspector() {
       <p className="subtitle">
         ({tile.cell.col}, {tile.cell.row}) · {tile.id}
       </p>
+
+      {readout && (
+        <div className="readout">
+          {readout.pressureKPa !== null && (
+            <div className="kv">
+              <span>압력</span>
+              <span>{readout.pressureKPa.toFixed(1)} kPa</span>
+            </div>
+          )}
+          {readout.flow !== null && (
+            <div className="kv">
+              <span>유량</span>
+              <span>{(readout.flow * 3600).toFixed(2)} m³/h</span>
+            </div>
+          )}
+          {readout.velocity !== null && Number.isFinite(readout.velocity) && (
+            <div className="kv">
+              <span>유속</span>
+              <span>{readout.velocity.toFixed(2)} m/s</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {(tile.kind === 'straight' || tile.kind === 'elbow' || tile.kind === 'tee' || tile.kind === 'cross' || tile.kind === 'valve') && (
         <>

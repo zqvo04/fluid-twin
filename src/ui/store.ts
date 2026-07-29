@@ -15,8 +15,17 @@ import { checkConnectors } from '../domain/connectivity';
 import { defaultViewport, panBy, zoomAt, Viewport } from '../render/viewport';
 import { NominalSize, Schedule } from '../domain/catalog/pipes';
 import { ValveType } from '../domain/catalog/valves';
+import { SolveSteadyResponse } from '../worker/protocol';
 
 export type EditMode = 'place' | 'select' | 'delete';
+
+export interface SteadyUiResult {
+  converged: boolean;
+  iterations: number;
+  residual: number;
+  heads: Map<string, number>;
+  links: Map<string, { flow: number; velocity: number; headLoss: number }>;
+}
 
 function recompile(grid: GridModel): { compiled: CompileResult; issues: ValidationIssue[]; excluded: Set<string> } {
   const compiled = compile(grid);
@@ -40,6 +49,15 @@ interface AppState {
   compiled: CompileResult;
   issues: ValidationIssue[];
   excludedTileIds: Set<string>;
+
+  result: SteadyUiResult | null;
+  solving: boolean;
+  showPressure: boolean;
+
+  setSolving: (v: boolean) => void;
+  applyResult: (r: SolveSteadyResponse) => void;
+  clearResult: () => void;
+  togglePressure: () => void;
 
   setMode: (m: EditMode) => void;
   setArmedKind: (k: TileKind) => void;
@@ -80,6 +98,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded };
   })(),
 
+  result: null,
+  solving: false,
+  showPressure: true,
+
+  setSolving: (v) => set({ solving: v }),
+  applyResult: (r) =>
+    set({
+      solving: false,
+      result: {
+        converged: r.converged,
+        iterations: r.iterations,
+        residual: r.residual,
+        heads: new Map(r.heads),
+        links: new Map(r.links),
+      },
+    }),
+  clearResult: () => set({ result: null, solving: false }),
+  togglePressure: () => set({ showPressure: !get().showPressure }),
+
   setMode: (m) => set({ mode: m, selectedTileId: m === 'select' ? get().selectedTileId : null }),
   setArmedKind: (k) => set({ armedKind: k, mode: 'place' }),
   rotateArmed: () => set({ armedRotation: (((get().armedRotation + 90) % 360) as Rotation) }),
@@ -94,7 +131,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (mode === 'delete') {
       const next = removeTileAt(grid, cell);
       const r = recompile(next);
-      set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, selectedTileId: null });
+      set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null, selectedTileId: null });
       return;
     }
 
@@ -111,13 +148,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       // of replacing it — a quicker way to orient a piece after dropping it.
       const next = rotateTileAt(grid, cell);
       const r = recompile(next);
-      set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded });
+      set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null });
       return;
     }
     const tile = makeTile(armedKind, cell, armedRotation, grid, tileDefaults);
     const next = placeTile(grid, tile);
     const r = recompile(next);
-    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, selectedTileId: tile.id });
+    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null, selectedTileId: tile.id });
   },
 
   selectTile: (id) => set({ selectedTileId: id, mode: id ? 'select' : get().mode }),
@@ -127,7 +164,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!selectedTileId) return;
     const next = updateTile(grid, selectedTileId, patch);
     const r = recompile(next);
-    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded });
+    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null });
   },
 
   deleteSelected: () => {
@@ -137,7 +174,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!tile) return;
     const next = removeTileAt(grid, tile.cell);
     const r = recompile(next);
-    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, selectedTileId: null });
+    set({ grid: next, compiled: r.compiled, issues: r.issues, excludedTileIds: r.excluded, result: null, selectedTileId: null });
   },
 
   setView: (v) => set({ view: v }),
@@ -156,6 +193,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       compiled: r.compiled,
       issues: r.issues,
       excludedTileIds: r.excluded,
+      result: null,
       selectedTileId: null,
       view: defaultViewport(get().view.width, get().view.height, cols, rows),
     });
@@ -168,6 +206,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       compiled: r.compiled,
       issues: r.issues,
       excludedTileIds: r.excluded,
+      result: null,
       selectedTileId: null,
       view: defaultViewport(get().view.width, get().view.height, grid.cols, grid.rows),
     });
