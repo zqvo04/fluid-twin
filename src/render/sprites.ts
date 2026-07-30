@@ -6,7 +6,9 @@
  */
 
 import { Direction, Tile } from '../grid/types';
-import { tilePorts } from '../grid/ports';
+import { pumpPorts, tilePorts } from '../grid/ports';
+import { hasCheckValve } from '../domain/network';
+import { PumpState } from '../analysis/pumpHealth';
 import {
   CAVITATION_WARNING,
   EXCLUDED_FILL,
@@ -17,6 +19,7 @@ import {
   PIPE_OUTLINE,
   PUMP_FILL,
   PUMP_OUTLINE,
+  pumpStressColor,
   SINK_FILL,
   SINK_OUTLINE,
   SOURCE_FILL,
@@ -55,11 +58,33 @@ export interface PressureTint {
   perPort?: Partial<Record<Direction, number>>;
 }
 
-/** Draw a tile. `excluded` dims it (isolated / unconnected from the solve);
- * `pressure` tints the pipe body by the solved pressure field instead of
- * the default pipe color (kind-specific ornaments keep their own color so
- * a valve/pump/source/sink stays identifiable regardless of the overlay). */
+/** What the last solve says a pump is going through, for its stress ring. */
+export interface PumpTint {
+  state: PumpState;
+  /** 0 (healthy) .. 1 (being destroyed). */
+  stress: number;
+}
+
+/**
+ * Draw a tile complete (body then ornament). Callers rendering a whole board
+ * should use `drawTileBody` and `drawTileOrnament` in two passes instead —
+ * pipe stubs have round caps that bleed past the cell edge, so a neighbor
+ * drawn later would otherwise paint over an ornament near the boundary.
+ */
 export function drawTile(
+  ctx: CanvasRenderingContext2D,
+  tile: Tile,
+  rect: TileRect,
+  excluded = false,
+  pressure?: PressureTint | null,
+  pump?: PumpTint | null,
+): void {
+  drawTileBody(ctx, tile, rect, excluded, pressure);
+  drawTileOrnament(ctx, tile, rect, excluded, pressure, pump);
+}
+
+/** The pipe body only: stubs, elbow bend, hub disc. */
+export function drawTileBody(
   ctx: CanvasRenderingContext2D,
   tile: Tile,
   rect: TileRect,
@@ -143,17 +168,52 @@ export function drawTile(
     }
   }
 
-  // --- Kind-specific center ornament. --------------------------------
+  ctx.restore();
+}
+
+/**
+ * The kind-specific ornament (valve body, pump, IN/OUT cap) and the
+ * cavitation mark. Drawn in a second pass so nothing overlaps it.
+ */
+export function drawTileOrnament(
+  ctx: CanvasRenderingContext2D,
+  tile: Tile,
+  rect: TileRect,
+  excluded = false,
+  pressure?: PressureTint | null,
+  pump?: PumpTint | null,
+): void {
+  const { x, y, size } = rect;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const ports = tilePorts(tile);
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
   switch (tile.kind) {
     case 'valve':
       drawDisc(ctx, cx, cy, size * 0.24, excluded ? EXCLUDED_FILL : VALVE_FILL, excluded ? EXCLUDED_OUTLINE : VALVE_OUTLINE);
       drawValveHandle(ctx, cx, cy, size, ports, excluded ? EXCLUDED_OUTLINE : VALVE_OUTLINE);
       if (!excluded) drawOpeningArc(ctx, cx, cy, size * 0.24, tile.kind === 'valve' ? tile.opening : 1);
       break;
-    case 'pump':
+    case 'pump': {
+      const { suction, discharge } = pumpPorts(tile);
+      // The suction side is drawn before the body so the body sits on top:
+      // a pump reads as "pulls from here, pushes to there", which is the one
+      // thing a symmetric two-port sprite cannot say.
+      if (!excluded) drawSuctionMark(ctx, cx, cy, size, suction);
       drawDisc(ctx, cx, cy, size * 0.26, excluded ? EXCLUDED_FILL : PUMP_FILL, excluded ? EXCLUDED_OUTLINE : PUMP_OUTLINE);
       drawImpeller(ctx, cx, cy, size * 0.15, excluded ? EXCLUDED_OUTLINE : PUMP_OUTLINE);
+      if (!excluded) {
+        // A filled arrow means the discharge check valve is fitted (one-way);
+        // a hollow one means flow can be pushed back through the pump.
+        drawFlowArrow(ctx, cx, cy, size, discharge, PUMP_OUTLINE, hasCheckValve(tile));
+        if (pump) drawStressRing(ctx, cx, cy, size * 0.26 + 5, pump);
+      }
       break;
+    }
     case 'source':
       drawCap(ctx, cx, cy, size, ports[0], excluded ? EXCLUDED_FILL : SOURCE_FILL, excluded ? EXCLUDED_OUTLINE : SOURCE_OUTLINE, 'IN');
       break;
@@ -220,6 +280,97 @@ function drawOpeningArc(ctx: CanvasRenderingContext2D, cx: number, cy: number, r
   ctx.globalAlpha = 0.55;
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+/**
+ * Converging funnel on the suction stub — the visual counterpart of the
+ * low-pressure region the impeller eye creates and draws liquid into.
+ */
+function drawSuctionMark(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, suction: Direction) {
+  const [dx, dy] = DIR_VECTOR[suction];
+  const [px, py] = [-dy, dx]; // perpendicular
+  const outer = size * 0.48;
+  const inner = size * 0.3;
+  const mouth = size * 0.17;
+  const throat = size * 0.06;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx + dx * outer + px * mouth, cy + dy * outer + py * mouth);
+  ctx.lineTo(cx + dx * inner + px * throat, cy + dy * inner + py * throat);
+  ctx.lineTo(cx + dx * inner - px * throat, cy + dy * inner - py * throat);
+  ctx.lineTo(cx + dx * outer - px * mouth, cy + dy * outer - py * mouth);
+  ctx.closePath();
+  ctx.fillStyle = PUMP_FILL;
+  ctx.globalAlpha = 0.5;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = PUMP_OUTLINE;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Chevron on the discharge stub: which way this pump actually moves fluid.
+ * Filled when a check valve makes that the only possible direction, hollow
+ * when the machine can be back-driven.
+ */
+function drawFlowArrow(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  discharge: Direction,
+  color: string,
+  oneWay: boolean,
+) {
+  const [dx, dy] = DIR_VECTOR[discharge];
+  const [px, py] = [-dy, dx];
+  const tip = size * 0.48;
+  const back = size * 0.33;
+  const halfW = size * 0.11;
+  ctx.beginPath();
+  ctx.moveTo(cx + dx * tip, cy + dy * tip);
+  ctx.lineTo(cx + dx * back + px * halfW, cy + dy * back + py * halfW);
+  ctx.lineTo(cx + dx * back - px * halfW, cy + dy * back - py * halfW);
+  ctx.closePath();
+  if (oneWay) {
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
+
+/**
+ * Ring around the pump body showing how hard a time it is having: a full red
+ * circle is a pump being destroyed (churning, dry, cavitating), a short green
+ * arc is one running near its BEP. A stopped pump gets a dashed grey ring.
+ */
+function drawStressRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, pump: PumpTint) {
+  ctx.save();
+  ctx.lineWidth = 3.5;
+  if (pump.state === 'stopped') {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = EXCLUDED_OUTLINE;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  // Background track, then the stress arc drawn clockwise from 12 o'clock.
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+  ctx.stroke();
+  const sweep = Math.max(pump.stress, 0.06) * Math.PI * 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + sweep);
+  ctx.strokeStyle = pumpStressColor(pump.stress);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawImpeller(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string) {

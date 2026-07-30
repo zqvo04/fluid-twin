@@ -62,11 +62,22 @@ export interface ValveTile extends TileBase {
   opening: number;
 }
 
-/** A lumped element: two nodes (in/out) joined by a PumpLink. Ports: E, W. */
+/**
+ * A lumped element: two nodes joined by a PumpLink. Unlike every other tile
+ * its two ports are *not* interchangeable — port 0 (W at rotation 0) is the
+ * suction the pump draws from, port 1 (E) the discharge it delivers to. See
+ * ports.ts `pumpPorts`.
+ */
 export interface PumpTile extends TileBase {
   kind: 'pump';
   spec: PumpSpec;
   speedRatio: number;
+  /**
+   * Discharge check valve fitted (the normal installation). Blocks reverse
+   * flow through the pump. Optional so v1 projects load; absent reads as
+   * fitted — see `hasCheckValve` in domain/network.ts.
+   */
+  checkValve?: boolean;
 }
 
 /** Boundary node (reservoir, fixed head). Port: E. */

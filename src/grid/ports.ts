@@ -15,7 +15,11 @@ const BASE_PORTS: Record<TileKind, Direction[]> = {
   tee: ['W', 'E', 'S'],
   cross: ['N', 'E', 'S', 'W'],
   valve: ['E', 'W'],
-  pump: ['E', 'W'],
+  // A pump is the one two-port tile whose ports are not interchangeable:
+  // port 0 is the suction, port 1 the discharge (compile.ts maps them to the
+  // PumpLink's `from`/`to` in that order). W first so an unrotated pump draws
+  // fluid from the left and delivers to the right, matching how a line reads.
+  pump: ['W', 'E'],
   source: ['E'],
   sink: ['W'],
 };
@@ -63,6 +67,16 @@ export function nextRotation(r: Rotation): Rotation {
 /** A tile's ports in its current (rotated) orientation. */
 export function tilePorts(tile: Tile): Direction[] {
   return BASE_PORTS[tile.kind].map((d) => rotateDirection(d, tile.rotation));
+}
+
+/**
+ * A pump tile's suction and discharge sides in its current orientation.
+ * Single source of truth for "which way does this pump face" — the compiler
+ * (node ordering) and the renderer (direction arrow) must not disagree.
+ */
+export function pumpPorts(tile: Tile): { suction: Direction; discharge: Direction } {
+  const [suction, discharge] = tilePorts(tile);
+  return { suction, discharge };
 }
 
 export function neighborCell(cell: Cell, d: Direction): Cell {

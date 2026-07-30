@@ -52,8 +52,8 @@ verified against textbook benchmarks:
 - **InstancedMesh Global View** — every pipe draws in a single call; a
   procedural 480-pipe grid demonstrates the performance target (verified to
   render and solve in-browser with no errors).
-- **Pump BEP warning (P4)** — classifies each pump's duty point against the
-  70–120% BEP window (low-flow / ok / overload).
+- **Pump condition analysis** — see the *Pump model* section: duty point
+  against the 70–120% BEP window, suction (NPSH) margin, and churn damage.
 - **Live parameter editing** — valve opening and pump speed sliders in the
   inspector; edits invalidate the stale result so a re-solve is one click away.
 
@@ -94,8 +94,8 @@ verdicts, plus assembly-friendly navigation:
   bubbles at the affected sections.
 - **ASME B31.3 hoop stress** — sustained and occasional (1.33 S) utilization from
   the steady and peak-surge pressure envelope, with a burst-risk warning.
-- **Pump NPSH margin** and **API RP 14E erosional velocity** checks on the steady
-  network, surfaced in the warnings panel.
+- **API RP 14E erosional velocity** checks on the steady network, surfaced in
+  the warnings panel. (Pump suction / NPSH is covered by the pump model below.)
 - **Navigation** — CameraControls (orbit + pan + dolly with damping), view
   presets (Fit / Iso / Top / Front / Side), and WASD/QE + arrow-key movement, so
   the model can be inspected and assembled, not just spun.
@@ -167,6 +167,53 @@ work. A throttled valve whose cavitation index σ falls below its incipient valu
 is flagged (ISA), since in steady flow the volumetric rate is conserved across
 the valve — the physics the valve expresses is the *pressure* drop, not a speed
 change.
+
+## Pump model
+
+A centrifugal pump does not push a slug of liquid down the discharge. The
+impeller flings liquid outward, leaving a low-pressure region at its eye, and
+ambient pressure on the supply surface pushes liquid up the suction line into
+it. Everything below follows from that.
+
+**Direction.** A pump's two ports are not interchangeable: port 0 is the
+suction, port 1 the discharge (W then E on an unrotated tile), and the compiler
+maps them to the `PumpLink`'s `from`/`to` in that order. The tile draws a
+converging funnel on the suction side and a chevron on the discharge, so
+orientation is readable without opening the inspector. A discharge check valve
+is fitted by default; reverse flow through it is a blocked line, and a pump
+without one is charged a quadratic obstruction resistance rather than its
+mirrored head curve, which has no meaning outside a four-quadrant model.
+
+**Suction limit (`domain/catalog/pumps.ts`).** How hard a pump can pull is set
+by absolute pressure, not by the motor:
+
+```
+NPSHa = (p_atm − p_v)/(ρg) + (H_suction − z_suction)
+NPSHr(Q) = NPSHr_bep · (Q/Q_bep)²
+```
+
+Deliverable head is scaled by a factor that is 1 above NPSHr and falls linearly
+to 0 at half of it — NPSHr is the 3%-head-drop point by definition, not the
+point where a pump quits. So a pump asked to lift more than the atmosphere can
+push under-delivers, and once fully starved it is vapor-bound: no head, and no
+throughflow either. The suction-lift preset shows the whole progression.
+
+NPSHr rising with Q² is a strong negative feedback (more flow ⇒ hungrier
+impeller), so its derivative goes into the solver's Jacobian rather than an
+outer fixed point, which oscillates. Only the weaker dependence on the solved
+suction head stays a relaxed fixed point, and the solver requires that relaxed
+state to settle before calling a solve converged. The Newton step is damped
+adaptively, since a full step can limit-cycle on a pump curve.
+
+**Churn, dry running and off-BEP (`analysis/pumpHealth.ts`).** Shaft power does
+not vanish when the discharge shuts: a radial impeller still absorbs about half
+its BEP power at zero flow, and with nothing leaving the casing all of it heats
+the liquid trapped inside. The analyzer reports the casing temperature-rise
+rate, the time to an allowable 15 K rise, and the thermal minimum flow that
+would carry the heat away, alongside dry running, cavitation, low-flow
+recirculation and runout. Each pump gets a 0–1 stress index, drawn as a
+green→red ring on the tile and a meter in the inspector, and the acute
+conditions become report violations.
 
 ## Network-wide transient (time domain)
 

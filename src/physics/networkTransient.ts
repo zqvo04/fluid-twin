@@ -22,9 +22,10 @@
 
 import { G } from '../domain/units';
 import { FluidState, waterProperties } from '../domain/fluid';
-import { PipelineNetwork } from '../domain/network';
+import { PipelineNetwork, hasCheckValve } from '../domain/network';
 import { pipeGeometry, A106B } from '../domain/catalog/pipes';
 import { valveK } from '../domain/catalog/valves';
+import { bepEfficiency } from '../domain/catalog/pumps';
 import { fittingK } from '../domain/catalog/fittings';
 import { reynolds, churchillFriction } from './friction';
 import { waveSpeed } from './waveSpeed';
@@ -76,6 +77,8 @@ interface TPump {
   omegaR: number; // rated angular speed [rad/s]
   etaR: number; // rated hydraulic efficiency
   qLast: number; // last solved pump flow [m^3/s] (for the rotor update)
+  /** Discharge check valve fitted — blocks reverse flow (see solveNodes). */
+  checkValve: boolean;
 }
 
 export interface NetworkTransientResult {
@@ -214,8 +217,9 @@ export class NetworkTransientSim {
           tripped: false,
           inertia: s.inertia,
           omegaR: (s.ratedRpm * 2 * Math.PI) / 60,
-          etaR: 0.75,
+          etaR: bepEfficiency(s),
           qLast: steady.links.get(l.id)?.flow ?? 0,
+          checkValve: hasCheckValve(l),
         };
       });
 
@@ -399,13 +403,22 @@ export class NetworkTransientSim {
         const uf = this.unknownIndex[p.from];
         const ut = this.unknownIndex[p.to];
         if (!p.tripped) {
-          const q = p.C * (H[p.from] + p.gain - H[p.to]);
-          if (uf >= 0) { F[uf] -= q; J[uf][uf] += -p.C; if (ut >= 0) J[uf][ut] += p.C; }
-          if (ut >= 0) { F[ut] += q; J[ut][ut] += -p.C; if (uf >= 0) J[ut][uf] += p.C; }
+          // Stiff head-gain link. Once the check valve shuts (the surge has
+          // pushed the discharge above what the pump can hold), the same link
+          // becomes near-non-conducting instead of passing flow backwards —
+          // the check-valve slam that a running pump also sees during a surge.
+          const drive = H[p.from] + p.gain - H[p.to];
+          const shut = p.checkValve && drive < 0;
+          const C = shut ? p.C * 1e-6 : p.C;
+          const q = C * drive;
+          if (uf >= 0) { F[uf] -= q; J[uf][uf] += -C; if (ut >= 0) J[uf][ut] += C; }
+          if (ut >= 0) { F[ut] += q; J[ut][ut] += -C; if (uf >= 0) J[ut][uf] += C; }
           p.qLast = q;
           continue;
         }
         // Tripped: solve H_to - H_from = a0 α² - a1 α Q - a2 Q²  for Q >= 0.
+        // Q is clamped non-negative below, which is the check valve; a tripped
+        // pump without one would need a four-quadrant curve (out of scope).
         const a = p.alpha;
         const dHba = H[p.to] - H[p.from];
         const disc = (p.a1 * a) ** 2 - 4 * p.a2 * (dHba - p.a0 * a * a);

@@ -11,8 +11,17 @@ import { PipelineNetwork, nodeById, linkLength } from '../domain/network';
 import { pipeGeometry, A106B } from '../domain/catalog/pipes';
 import { SteadyResult } from '../physics/steadySolver';
 import { analyzeHoopStress } from './stress';
-import { analyzePumpDuty } from './pumpDuty';
+import { analyzePumpHealth } from './pumpHealth';
 import { analyzeNetworkVulnerability } from './networkVulnerability';
+
+/** Governing guidance for each pump condition (see analysis/pumpHealth.ts). */
+const PUMP_CLAUSE: Record<string, string> = {
+  churn: 'Minimum continuous thermal flow (HI 9.6.3 / API 610)',
+  'dry-run': 'NPSH available (HI 9.6.1)',
+  cavitating: 'NPSH margin (HI 9.6.1)',
+  overload: 'Hydraulic Institute (70–120% BEP)',
+  'low-flow': 'Hydraulic Institute (70–120% BEP)',
+};
 
 export type Verdict = 'PASS' | 'ATTENTION REQUIRED';
 export type Severity = 'ok' | 'warning' | 'violation';
@@ -95,30 +104,22 @@ export function generateReport(net: PipelineNetwork, result: SteadyResult, fluid
     }
   }
 
-  // --- Pumps: duty point + NPSH ----------------------------------------
-  const duties = analyzePumpDuty(net, result);
-  for (const d of duties) {
-    if (d.status !== 'ok') {
-      findings.push({
-        severity: 'warning',
-        component: d.linkId,
-        message: `${d.message} (duty ${(d.flow * 3600).toFixed(0)} m³/h, ${(d.bepRatio * 100).toFixed(0)}% BEP).`,
-        clause: 'Hydraulic Institute (70–120% BEP)',
-      });
-    }
+  // --- Pumps: duty point, suction condition, churn ----------------------
+  // Churn and dry running destroy a pump on a timescale of minutes, so they
+  // are violations; off-BEP operation is wear, so it is a warning.
+  const health = analyzePumpHealth(net, result, fluid);
+  for (const h of health) {
+    if (h.state === 'ok' || h.state === 'stopped') continue;
+    const acute = h.state === 'churn' || h.state === 'dry-run' || h.state === 'cavitating';
+    findings.push({
+      severity: acute ? 'violation' : 'warning',
+      component: h.linkId,
+      message: h.message,
+      clause: PUMP_CLAUSE[h.state],
+    });
   }
 
   const vuln = analyzeNetworkVulnerability(net, result, fluid);
-  for (const n of vuln.npsh) {
-    if (!n.ok) {
-      findings.push({
-        severity: 'violation',
-        component: n.linkId,
-        message: `NPSH available ${n.npshAvailable.toFixed(1)} m below required + margin (NPSHr ${n.npshRequired.toFixed(1)} m).`,
-        clause: 'NPSH margin (HI 9.6.1)',
-      });
-    }
-  }
   for (const e of vuln.erosion) {
     findings.push({
       severity: 'warning',

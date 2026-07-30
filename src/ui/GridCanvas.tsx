@@ -96,10 +96,11 @@ export function GridCanvas() {
       ghostTile,
       compiled,
       pressureField,
+      pumpHealth: result?.pumps ?? null,
     });
     // ghostTile is derived fresh each render from hoverCell/armedKind/etc, so
     // it is intentionally excluded from the dep list to avoid an identity churn.
-  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, themeTick]);
+  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, result, themeTick]);
 
   const eventCell = useCallback(
     (e: React.MouseEvent) => {

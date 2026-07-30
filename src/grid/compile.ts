@@ -133,6 +133,7 @@ export function compile(grid: GridModel): CompileResult {
         to: `${tile.id}:b`,
         spec: tile.spec,
         speedRatio: tile.speedRatio,
+        checkValve: tile.checkValve,
       };
       links.push(link);
       tileLink.set(tile.id, link.id);
