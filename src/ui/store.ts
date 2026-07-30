@@ -16,6 +16,7 @@ import { centerOn, defaultViewport, panBy, zoomAt, Viewport } from '../render/vi
 import { NominalSize, Schedule } from '../domain/catalog/pipes';
 import { ValveType } from '../domain/catalog/valves';
 import { SolveSteadyResponse, NetTransientFrame } from '../worker/protocol';
+import { PumpHealth } from '../analysis/pumpHealth';
 
 export type EditMode = 'place' | 'select' | 'delete';
 
@@ -28,6 +29,8 @@ export interface SteadyUiResult {
   /** Engineering findings (hoop stress, erosion, NPSH, valve cavitation) —
    * informational only, unlike `issues`, which gates re-solving. */
   findings: ValidationIssue[];
+  /** Per-pump condition, keyed by pump link id. */
+  pumps: Map<string, PumpHealth>;
 }
 
 export interface TransientHistoryPoint {
@@ -196,6 +199,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         heads: new Map(r.heads),
         links: new Map(r.links),
         findings: r.findings,
+        pumps: new Map(r.pumps.map((p) => [p.linkId, p])),
       },
     }),
   clearResult: () => set({ result: null, solving: false }),

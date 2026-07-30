@@ -103,7 +103,7 @@ function describe(h: Omit<PumpHealth, 'message'>, casingLitres: number): string 
     case 'dry-run':
       return `Running dry: NPSH available ${h.npshAvailable.toFixed(1)} m cannot feed the impeller (needs ${h.npshRequired.toFixed(1)} m). No head is produced and the seal has no liquid to cool it — stop the pump or flood the suction.`;
     case 'churn':
-      return `Churning against a shut discharge at ${pct}% BEP: ${(h.shaftPower / 1000).toFixed(1)} kW goes into ${casingLitres.toFixed(0)} L of trapped liquid, heating it ${h.tempRiseRate.toFixed(2)} K/s — ${h.secondsToTempLimit.toFixed(0)} s to a ${CHURN_ALLOWABLE_RISE_K} K rise. Open the discharge or run a minimum-flow line of at least ${(h.minThermalFlow * 3600).toFixed(1)} m³/h.`;
+      return `Churning against a shut discharge at ${pct}% BEP: ${(h.shaftPower / 1000).toFixed(1)} kW goes into ${casingLitres.toFixed(0)} L of trapped liquid, heating it ${h.tempRiseRate.toFixed(2)} K/s — ${h.secondsToTempLimit.toFixed(0)} s to a ${CHURN_ALLOWABLE_RISE_K} K rise. Open the discharge, or run a minimum-flow line — ${(h.minThermalFlow * 3600).toFixed(1)} m³/h carries the heat away, though recirculation and vibration usually set a higher limit than the thermal one.`;
     case 'cavitating':
       return `Cavitating: NPSH available ${h.npshAvailable.toFixed(1)} m is ${Math.abs(h.npshMargin).toFixed(1)} m short of NPSH required ${h.npshRequired.toFixed(1)} m. Head is down to ${(h.suctionFactor * 100).toFixed(0)}% of the curve and the impeller is eroding.`;
     case 'overload':

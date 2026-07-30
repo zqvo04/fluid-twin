@@ -83,8 +83,9 @@ export interface PumpLink {
 }
 
 /** Whether a pump blocks reverse flow. Default (unset) is "fitted", which is
- *  what essentially every real pump installation has. */
-export const hasCheckValve = (link: PumpLink): boolean => link.checkValve !== false;
+ *  what essentially every real pump installation has. Takes the tile or the
+ *  link, so the editor and the solver read the default the same way. */
+export const hasCheckValve = (pump: { checkValve?: boolean }): boolean => pump.checkValve !== false;
 
 export type NetworkLink = PipeLink | ValveLink | PumpLink;
 

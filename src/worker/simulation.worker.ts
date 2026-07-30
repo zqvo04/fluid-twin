@@ -9,6 +9,7 @@ import { solveSteadyState } from '../physics/steadySolver';
 import { WaterHammerSim } from '../physics/transient';
 import { NetworkTransientSim } from '../physics/networkTransient';
 import { generateReport, reportFindingsToUiFindings } from '../analysis/report';
+import { analyzePumpHealth } from '../analysis/pumpHealth';
 import { WorkerRequest, WorkerResponse, StartTransientRequest, StartNetTransientRequest } from './protocol';
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
@@ -164,6 +165,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
         const findings = result.converged
           ? reportFindingsToUiFindings(generateReport(msg.network, result, result.fluid).findings)
           : [];
+        const pumps = result.converged ? analyzePumpHealth(msg.network, result, result.fluid) : [];
         const res: WorkerResponse = {
           type: 'SOLVE_STEADY_RESULT',
           requestId: msg.requestId,
@@ -176,6 +178,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
             { flow: r.flow, velocity: r.velocity, headLoss: r.headLoss },
           ]),
           findings,
+          pumps,
         };
         ctx.postMessage(res);
         break;

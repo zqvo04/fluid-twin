@@ -8,6 +8,7 @@
  */
 
 import { PipelineNetwork } from '../domain/network';
+import { PumpHealth } from '../analysis/pumpHealth';
 import { WaterHammerConfig } from '../physics/transient';
 
 export interface SolveSteadyRequest {
@@ -85,6 +86,9 @@ export interface SolveSteadyResponse {
   /** Link id -> { flow, velocity, headLoss }. */
   links: Array<[string, { flow: number; velocity: number; headLoss: number }]>;
   findings: SolveFinding[];
+  /** Per-pump condition (duty point, suction, churn) — plain data, so it
+   *  crosses the worker boundary as-is. */
+  pumps: PumpHealth[];
 }
 
 export interface PongResponse {

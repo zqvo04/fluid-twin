@@ -98,3 +98,15 @@ export function pressureOutlineColor(t: number): string {
 }
 
 export const CAVITATION_WARNING = '#8b2fc9';
+
+/** Pump stress ring: green while healthy, through amber, to red as the duty
+ *  point moves toward something that destroys the machine. */
+export const PUMP_STRESS_OK = '#1f9d55';
+export const PUMP_STRESS_WARN = '#e0a100';
+export const PUMP_STRESS_CRITICAL = '#d93a2b';
+
+export function pumpStressColor(stress: number): string {
+  if (stress >= 0.66) return PUMP_STRESS_CRITICAL;
+  if (stress >= 0.25) return PUMP_STRESS_WARN;
+  return PUMP_STRESS_OK;
+}

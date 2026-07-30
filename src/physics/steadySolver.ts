@@ -56,6 +56,18 @@ const DEFAULTS: Required<SolverOptions> = {
   relaxation: 1.0,
 };
 
+/**
+ * Adaptive damping. A full Newton step is right for a network of pipes and
+ * valves, but a pump curve can make it overshoot into a two-point limit cycle
+ * — the flow correction stops shrinking and the solve never converges even
+ * with an unlimited iteration budget. Whenever an iteration fails to reduce
+ * the correction, the step is shortened; a shortened step that is making
+ * progress is allowed to grow back toward the caller's relaxation.
+ */
+const DAMP_DOWN = 0.7;
+const DAMP_UP = 1.15;
+const MIN_RELAXATION = 0.1;
+
 function resolvedFixedHead(node: NetworkNode): number {
   // Reservoir head defaults to its free-surface elevation (Y) if not overridden.
   return node.fixedHead ?? node.position.y;
@@ -106,6 +118,8 @@ export function solveSteadyState(net: PipelineNetwork, options: SolverOptions = 
   let residual = Infinity;
   let iter = 0;
   let converged = false;
+  let relax = opts.relaxation;
+  let prevResidual = Infinity;
 
   for (iter = 1; iter <= opts.maxIterations; iter++) {
     // Assemble the Schur system M dH = rhs over the unknown nodes.
@@ -177,15 +191,22 @@ export function solveSteadyState(net: PipelineNetwork, options: SolverOptions = 
       const dHfrom = ua >= 0 ? dH[ua] : 0;
       const dHto = ub >= 0 ? dH[ub] : 0;
       const dQ = -w[p] * (F1[p] + (dHto - dHfrom));
-      flow[p] += opts.relaxation * dQ;
+      flow[p] += relax * dQ;
       maxDq = Math.max(maxDq, Math.abs(dQ));
     }
 
     // Head update.
     for (let i = 0; i < nNodes; i++) {
       const a = unknownIndex[i];
-      if (a >= 0) head[i] += opts.relaxation * dH[a];
+      if (a >= 0) head[i] += relax * dH[a];
     }
+
+    // Damp the next step if this one did not make progress (see DAMP_DOWN).
+    relax =
+      maxDq < prevResidual
+        ? Math.min(opts.relaxation, relax * DAMP_UP)
+        : Math.max(MIN_RELAXATION, relax * DAMP_DOWN);
+    prevResidual = maxDq;
 
     residual = maxDq;
     // Both the flow correction and every link's own relaxed state have to

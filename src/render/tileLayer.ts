@@ -8,7 +8,8 @@
 import { GridModel, Tile, sameCell } from '../grid/types';
 import { Cell } from '../grid/types';
 import { cellSizePx, cellToScreen, Viewport } from './viewport';
-import { drawTile } from './sprites';
+import { drawTile, drawTileBody, drawTileOrnament } from './sprites';
+import { PumpHealth } from '../analysis/pumpHealth';
 import { HOVER_FILL, SELECT_RING, canvasBg, gridLine, gridLineStrong } from './theme';
 import { CompileResult } from '../grid/compile';
 import { PressureField, tilePressure } from './pressureField';
@@ -22,6 +23,17 @@ export interface DrawOptions {
   /** When set (with `pressureField`), tiles are tinted by solved pressure. */
   compiled?: CompileResult | null;
   pressureField?: PressureField | null;
+  /** Solved pump condition, keyed by pump link id (needs `compiled` to map
+   *  a pump tile to its link). */
+  pumpHealth?: Map<string, PumpHealth> | null;
+}
+
+/** The solved condition of the pump a tile owns, if there is one. */
+function pumpTintFor(tileId: string, opts: DrawOptions) {
+  if (!opts.compiled || !opts.pumpHealth) return null;
+  const linkId = opts.compiled.tileLink.get(tileId);
+  const health = linkId ? opts.pumpHealth.get(linkId) : undefined;
+  return health ? { state: health.state, stress: health.stress } : null;
 }
 
 export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: GridModel, opts: DrawOptions = {}): void {
@@ -58,11 +70,22 @@ export function drawGrid(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gr
 
   const showPressure = opts.compiled && opts.pressureField;
 
-  for (const tile of grid.tiles) {
+  // Two passes: every pipe body first, then every ornament. Stub round-caps
+  // bleed a little past the cell edge, so a single pass would let a later
+  // neighbor paint over the previous tile's ornament (a pump's flow arrow
+  // sits close enough to the boundary for that to matter).
+  const drawn = grid.tiles.map((tile) => {
     const { x, y } = cellToScreen(view, tile.cell);
+    const rect = { x, y, size: s };
     const excluded = opts.excludedTileIds?.has(tile.id) ?? false;
     const pressure = showPressure ? tilePressure(tile.id, grid, opts.compiled!, opts.pressureField!) : null;
-    drawTile(ctx, tile, { x, y, size: s }, excluded, pressure);
+    drawTileBody(ctx, tile, rect, excluded, pressure);
+    return { tile, rect, excluded, pressure };
+  });
+
+  for (const { tile, rect, excluded, pressure } of drawn) {
+    const { x, y } = rect;
+    drawTileOrnament(ctx, tile, rect, excluded, pressure, pumpTintFor(tile.id, opts));
 
     if (opts.selectedTileId === tile.id) {
       ctx.save();
