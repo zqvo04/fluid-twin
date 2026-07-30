@@ -122,13 +122,19 @@ export function solveSteadyState(net: PipelineNetwork, options: SolverOptions = 
     // Per-link contributions.
     const F1 = new Array<number>(compiled.length).fill(0);
     const w = new Array<number>(compiled.length).fill(0);
+    // Largest still-moving internal link state (a pump's relaxed NPSHa).
+    let maxState = 0;
 
     for (let p = 0; p < compiled.length; p++) {
       const link = compiled[p];
       const q = flow[p];
-      const { g, dgdQ } = evaluateLink(link, q, fluid);
+      // The link's own `from` head is fed back in: a pump's deliverable head
+      // depends on the suction pressure it sees, so that coupling is closed
+      // inside the Newton loop (evaluateLink relaxes it for stability).
+      const { g, dgdQ, stateResidual } = evaluateLink(link, q, fluid, head[link.fromIndex]);
       const wp = 1 / dgdQ;
       w[p] = wp;
+      if (stateResidual > maxState) maxState = stateResidual;
 
       const i = link.fromIndex;
       const j = link.toIndex;
@@ -182,7 +188,10 @@ export function solveSteadyState(net: PipelineNetwork, options: SolverOptions = 
     }
 
     residual = maxDq;
-    if (residual < opts.tolerance) {
+    // Both the flow correction and every link's own relaxed state have to
+    // have settled — a pump's NPSHa feedback can still be drifting while the
+    // Newton step alone has gone quiet.
+    if (residual < opts.tolerance && maxState < opts.tolerance) {
       converged = true;
       break;
     }

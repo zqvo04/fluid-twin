@@ -65,6 +65,11 @@ export interface ValveLink {
   opening: number;
 }
 
+/**
+ * A pump. `from` is the suction node and `to` the discharge node — the
+ * direction is physical, not a bookkeeping convention: a centrifugal pump
+ * only produces head one way round.
+ */
 export interface PumpLink {
   id: string;
   kind: 'pump';
@@ -73,7 +78,13 @@ export interface PumpLink {
   spec: PumpSpec;
   /** Speed ratio relative to rated (1 = rated, VFD control < 1). */
   speedRatio: number;
+  /** Discharge check valve fitted; absent reads as fitted (`hasCheckValve`). */
+  checkValve?: boolean;
 }
+
+/** Whether a pump blocks reverse flow. Default (unset) is "fitted", which is
+ *  what essentially every real pump installation has. */
+export const hasCheckValve = (link: PumpLink): boolean => link.checkValve !== false;
 
 export type NetworkLink = PipeLink | ValveLink | PumpLink;
 

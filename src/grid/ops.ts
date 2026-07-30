@@ -62,7 +62,7 @@ export function makeTile(
     case 'valve':
       return { ...base, kind: 'valve', valveType: defaults.valveType, opening: 1 };
     case 'pump':
-      return { ...base, kind: 'pump', spec: PUMP_50M, speedRatio: 1 };
+      return { ...base, kind: 'pump', spec: PUMP_50M, speedRatio: 1, checkValve: true };
     case 'source':
       // No free head above grade: a newly placed IN is an open tank at its
       // own elevation, so flow to a same-elevation OUT needs a pump — head
