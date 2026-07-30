@@ -8,15 +8,15 @@ import { RefObject, useEffect, useRef } from 'react';
 import { useAppStore } from './store';
 import {
   buildFlowGraph,
-  spawnParticle,
+  particleBudget,
+  seedParticles,
   stepParticles,
-  rebalanceOccupancy,
-  REBALANCE_INTERVAL_S,
   Particle,
   FlowGraph,
   LinkFlow,
 } from '../sim/particles';
 import { buildLinkGeometries, LinkGeometry } from '../sim/linkGeometry';
+import { linkOpenFraction } from '../sim/flowProfile';
 import { drawParticles } from '../render/fluidLayer';
 
 const MAX_DT = 0.05; // clamp long frame gaps (tab backgrounded, etc.)
@@ -40,8 +40,16 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
       graphRef.current = null;
       return;
     }
+    // Carry each link's open flow-area fraction alongside its solved flow, so
+    // a throttled valve animates as the jet it physically is rather than as a
+    // slower version of a wide-open one.
+    const openByLink = new Map<string, number>();
+    for (const link of compiled.network.links) openByLink.set(link.id, linkOpenFraction(link));
+
     const flows = new Map<string, LinkFlow>();
-    for (const [id, r] of result.links) flows.set(id, { flow: r.flow, velocity: r.velocity });
+    for (const [id, r] of result.links) {
+      flows.set(id, { flow: r.flow, velocity: r.velocity, openFraction: openByLink.get(id) ?? 1 });
+    }
 
     const graph = buildFlowGraph(compiled.network, flows);
     const geometries = buildLinkGeometries(grid, compiled);
@@ -49,16 +57,8 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
     graphRef.current = graph;
     geometriesRef.current = geometries;
 
-    const target = Math.min(600, Math.max(40, compiled.network.links.length * 15));
-    const particles: Particle[] = [];
-    for (let i = 0; i < target; i++) {
-      const p = spawnParticle(graph, Math.random);
-      if (p) particles.push(p);
-    }
-    particlesRef.current = particles;
+    particlesRef.current = seedParticles(graph, geometries, particleBudget(geometries), Math.random);
   }, [grid, compiled, result, showFlow]);
-
-  const rebalanceAccum = useRef(0);
 
   useEffect(() => {
     let raf = 0;
@@ -72,19 +72,21 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
       if (canvas) {
         const graph = graphRef.current;
         if (graph) {
-          stepParticles(particlesRef.current, geometriesRef.current, graph, flowsRef.current, dt, Math.random);
-          rebalanceAccum.current += dt;
-          if (rebalanceAccum.current >= REBALANCE_INTERVAL_S) {
-            rebalanceAccum.current = 0;
-            rebalanceOccupancy(particlesRef.current, graph, Math.random);
-          }
+          const cellSize = useAppStore.getState().grid.cellSize;
+          stepParticles(particlesRef.current, geometriesRef.current, graph, flowsRef.current, dt, Math.random, cellSize);
         }
         const ctx = canvas.getContext('2d');
         if (ctx) {
           const dpr = window.devicePixelRatio || 1;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           if (graph) {
-            drawParticles(ctx, useAppStore.getState().view, particlesRef.current, geometriesRef.current);
+            drawParticles(
+              ctx,
+              useAppStore.getState().view,
+              particlesRef.current,
+              geometriesRef.current,
+              flowsRef.current,
+            );
           } else {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
           }

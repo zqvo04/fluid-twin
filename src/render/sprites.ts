@@ -30,6 +30,12 @@ import {
   pressureOutlineColor,
 } from './theme';
 
+/**
+ * Drawn pipe width as a fraction of a cell. Shared with the fluid layer so
+ * flow streaks stay inside the pipe they belong to.
+ */
+export const PIPE_WIDTH_CELLS = 0.32;
+
 export interface TileRect {
   x: number;
   y: number;
@@ -95,7 +101,7 @@ export function drawTileBody(
   const cx = x + size / 2;
   const cy = y + size / 2;
   const half = size / 2;
-  const pipeW = size * 0.32;
+  const pipeW = size * PIPE_WIDTH_CELLS;
   const ports = tilePorts(tile);
 
   const fill = excluded ? EXCLUDED_FILL : pressure ? pressureColor(pressure.t) : PIPE_FILL;

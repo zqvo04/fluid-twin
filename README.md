@@ -168,6 +168,40 @@ is flagged (ISA), since in steady flow the volumetric rate is conserved across
 the valve — the physics the valve expresses is the *pressure* drop, not a speed
 change.
 
+## Flow field visualization
+
+The 2D board animates the solved velocity field as parcels of fluid, and the
+detail is deliberate — a single-file line of identical dots moving at bulk
+velocity reads as a conveyor belt, not a fluid.
+
+**Across the bore.** A particle carries a lateral position, not just a
+position along the pipe, and its speed follows the turbulent 1/7-power-law
+profile: fast in the core, stalled at the wall. Neighbouring parcels therefore
+separate as they travel, which is what shear looks like. Turbulence
+continuously swaps fluid between the core and the wall, so particles also
+random-walk across the section (scaled by distance travelled, not by time —
+mixing happens per diameter, not per second); without that, the profile would
+sort particles permanently by speed and the wall layer would silt up.
+
+**Through a valve.** A valve's opening does more than add resistance: it
+squeezes the stream through a small gap, and continuity means what goes
+through that gap goes fast. The particle speed through the gap is
+`V_pipe / θ`, where θ is the valve's inherent flow-area fraction
+(`characteristicFraction`, the same curve the solver's K uses), and the stream
+is drawn contracted to `√θ` of the bore there and spread again downstream. As
+a valve shuts, Q falls, so the whole line slows and dims — while the jet
+through the gap stays quick. That contrast is what makes throttling legible,
+and it falls out of the flow-area relation rather than being animated by hand.
+
+**How to read it.** Streak length and brightness track *absolute* velocity
+against a 3 m/s reference (the usual design velocity for water in steel, just
+under API RP 14E's erosional limit), so a well-sized line draws bright and a
+throttled one draws faint — rather than everything renormalising around
+whatever the scene's current maximum happens to be. Particle *spacing*, by
+contrast, is even everywhere: a pipe carrying less flow is not emptier, it is
+full of slower fluid. That even density is also the steady state the handoff
+dynamics reach on their own (occupancy → Q·L/V = A·L, the link's volume).
+
 ## Pump model
 
 A centrifugal pump does not push a slug of liquid down the discharge. The

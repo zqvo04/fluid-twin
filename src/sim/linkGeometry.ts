@@ -19,8 +19,17 @@ export interface CellPoint {
 export interface LinkGeometry {
   /** Cell-space polyline the link's flow travels along, `from` -> `to`. */
   points: CellPoint[];
-  /** Physical length [m] used to time particle motion (floored, never 0). */
-  physicalLength: number;
+  /**
+   * Length of that polyline in grid cells (floored, never 0).
+   *
+   * Particle motion is timed off this rather than off the link's physical
+   * length, because the board draws one cell per `grid.cellSize` metres for
+   * *every* link. Converting the solved velocity to cells/s once
+   * (`V / cellSize`) and dividing by this gives one consistent rule; the old
+   * per-link `physicalLength`, which was floored to half a cell for valves
+   * and short connectors, made those links animate at twice the right speed.
+   */
+  cellLength: number;
 }
 
 function tileCenter(tile: Tile): CellPoint {
@@ -81,11 +90,57 @@ export function buildLinkGeometries(grid: GridModel, compiled: CompileResult): M
       .map(tileCenter);
 
     const points = [from, ...mids, to];
-    const physicalLength = Math.max(link.kind === 'pipe' ? (link.length ?? 0) : 0, grid.cellSize * 0.5);
-    geometries.set(link.id, { points, physicalLength });
+    geometries.set(link.id, { points, cellLength: Math.max(polylineLength(points), 1e-3) });
   }
 
   return geometries;
+}
+
+/** Total length of a polyline, in cells. */
+export function polylineLength(points: CellPoint[]): number {
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].col - points[i].col;
+    const dy = points[i + 1].row - points[i].row;
+    total += Math.sqrt(dx * dx + dy * dy);
+  }
+  return total;
+}
+
+/**
+ * Point at fraction s *and* the unit tangent there. The tangent is what lets
+ * a particle be offset sideways off the centreline (perpendicular to travel)
+ * so the stream has a cross-section instead of being a single file.
+ */
+export function pointAndTangentAtFraction(points: CellPoint[], s: number): { point: CellPoint; tCol: number; tRow: number } {
+  const point = pointAtFraction(points, s);
+  if (points.length < 2) return { point, tCol: 1, tRow: 0 };
+
+  // Tangent of the segment the fraction lands on.
+  const segLens: number[] = [];
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].col - points[i].col;
+    const dy = points[i + 1].row - points[i].row;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    segLens.push(len);
+    total += len;
+  }
+  if (total < 1e-9) return { point, tCol: 1, tRow: 0 };
+
+  let target = Math.max(0, Math.min(1, s)) * total;
+  for (let i = 0; i < segLens.length; i++) {
+    if (target <= segLens[i] || i === segLens.length - 1) {
+      const len = Math.max(segLens[i], 1e-9);
+      return {
+        point,
+        tCol: (points[i + 1].col - points[i].col) / len,
+        tRow: (points[i + 1].row - points[i].row) / len,
+      };
+    }
+    target -= segLens[i];
+  }
+  return { point, tCol: 1, tRow: 0 };
 }
 
 /** Interpolate a point along a polyline at fraction s (0..1) of its total length. */
