@@ -241,18 +241,21 @@ body {
 /* ===================================================================
    Panels
    =================================================================== */
+/* Resting panels (Palette, Inspector, Transient) are solid — they hold
+ * numbers a user reads and edits, and glass blur over the canvas made those
+ * numbers harder to read. Blur is reserved for transient overlay chrome
+ * (topbar, dropdowns) below. */
 .panel {
   width: 100%;
   overflow-y: auto;
   padding: var(--space-lg);
-  background: var(--color-paper-glass);
-  backdrop-filter: blur(14px);
+  background: var(--color-paper-1);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   color: var(--color-ink-0);
   font-size: var(--text-base);
-  box-shadow: var(--shadow-lg);
-  animation: panel-in var(--dur-slow) var(--ease-out);
+  box-shadow: var(--shadow-md);
+  animation: panel-in var(--dur-mid) var(--ease-out);
   z-index: 30;
   flex: none;
 }
@@ -379,7 +382,7 @@ button.danger {
 }
 
 button.danger:hover {
-  background: oklch(62% 0.19 22 / 0.22);
+  background: var(--color-danger-ghost-hover);
 }
 
 .segmented {
@@ -429,17 +432,17 @@ button.danger:hover {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-xs);
-  background: linear-gradient(135deg, #e4527a, #c43862);
+  background: linear-gradient(135deg, var(--color-part-pipe), var(--color-part-pipe-dim));
   transition: transform var(--dur-mid) var(--ease-out);
 }
 
 .piece-icon-elbow { border-radius: 4px 100% 4px 4px; }
-.piece-icon-tee { border-radius: var(--radius-xs); background: linear-gradient(135deg, #e4527a, #c43862); }
+.piece-icon-tee { border-radius: var(--radius-xs); background: linear-gradient(135deg, var(--color-part-pipe), var(--color-part-pipe-dim)); }
 .piece-icon-cross { border-radius: 50%; }
-.piece-icon-valve { background: linear-gradient(135deg, #ffc94d, #dd9f00); border-radius: 50%; }
-.piece-icon-pump { background: linear-gradient(135deg, #7c6fe0, #5b4fc4); border-radius: 50%; }
-.piece-icon-source { background: linear-gradient(135deg, #37b679, #25904f); border-radius: 8px; }
-.piece-icon-sink { background: linear-gradient(135deg, #4ea8de, #2e82b5); border-radius: 8px; }
+.piece-icon-valve { background: linear-gradient(135deg, var(--color-part-valve), var(--color-part-valve-dim)); border-radius: 50%; }
+.piece-icon-pump { background: linear-gradient(135deg, var(--color-part-pump), var(--color-part-pump-dim)); border-radius: 50%; }
+.piece-icon-source { background: linear-gradient(135deg, var(--color-part-source), var(--color-part-source-dim)); border-radius: 8px; }
+.piece-icon-sink { background: linear-gradient(135deg, var(--color-part-sink), var(--color-part-sink-dim)); border-radius: 8px; }
 
 /* ===================================================================
    Form fields
@@ -576,11 +579,10 @@ button.danger:hover {
   transform: translateX(-50%);
   min-width: 260px;
   padding: var(--space-md) var(--space-lg);
-  background: var(--color-paper-glass);
-  backdrop-filter: blur(14px);
+  background: var(--color-paper-1);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   z-index: 30;
 }
 
@@ -628,7 +630,7 @@ button.danger:hover {
 .legend-warn {
   margin-top: 6px;
   font-size: var(--text-xs);
-  color: #8b2fc9;
+  color: var(--color-cavitation);
   font-weight: 650;
 }
 
