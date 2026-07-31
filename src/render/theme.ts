@@ -59,13 +59,21 @@ export const HOVER_FILL = 'rgba(15, 156, 148, 0.12)';
 
 export const LABEL_INK = '#20302f';
 
-/** Low(cool blue) -> high(warm red) pressure ramp, perceptually ordered. */
+/**
+ * Low(cool blue) -> high(warm red) pressure ramp. A Moreland-style
+ * "cool-warm" diverging map — the standard choice for a signed scalar field
+ * in scientific visualization — instead of a rainbow/jet ramp. Jet's
+ * green-yellow band creates false perceptual edges that don't correspond to
+ * any real jump in the underlying pressure, and it doesn't degrade gracefully
+ * for red-green color-blindness; this ramp is monotonic in lightness on both
+ * sides of the pale midpoint, so magnitude reads correctly even in greyscale.
+ */
 const PRESSURE_STOPS: Array<[number, [number, number, number]]> = [
-  [0.0, [40, 90, 210]], // deep blue (low)
-  [0.25, [40, 190, 220]], // cyan
-  [0.5, [70, 200, 120]], // green
-  [0.75, [240, 200, 60]], // yellow
-  [1.0, [225, 60, 60]], // red (high)
+  [0.0, [59, 76, 192]], // deep blue (low)
+  [0.25, [124, 159, 249]], // pale blue
+  [0.5, [221, 221, 221]], // neutral (mid)
+  [0.75, [239, 138, 98]], // pale red
+  [1.0, [180, 4, 38]], // deep red (high)
 ];
 
 function pressureRgb(t: number): [number, number, number] {
