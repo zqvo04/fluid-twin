@@ -809,6 +809,11 @@ button.danger:hover {
   color: var(--color-ink-1);
 }
 
+.statusbar-danger {
+  color: var(--color-danger);
+  font-weight: 650;
+}
+
 .statusbar-units {
   color: var(--color-ink-3);
 }
