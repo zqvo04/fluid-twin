@@ -6,6 +6,7 @@ import { hasCheckValve } from '../domain/network';
 import { PumpHealth, PumpState } from '../analysis/pumpHealth';
 import { pumpStressColor } from '../render/theme';
 import { computePressureField, tilePressure } from '../render/pressureField';
+import { KIND_LABEL } from './kindLabels';
 
 /** What each pump condition means, in one line. */
 const PUMP_STATE_LABEL: Record<PumpState, string> = {
@@ -16,17 +17,6 @@ const PUMP_STATE_LABEL: Record<PumpState, string> = {
   overload: '과부하 (runout)',
   'low-flow': '저유량',
   ok: '정상',
-};
-
-const KIND_LABEL: Record<string, string> = {
-  straight: '직관',
-  elbow: '엘보',
-  tee: 'T자관',
-  cross: '십자관',
-  valve: '밸브',
-  pump: '펌프',
-  source: 'IN (소스)',
-  sink: 'OUT (싱크)',
 };
 
 /**

@@ -61,9 +61,12 @@
   --color-cavitation: #8b2fc9;
 
   /* --- Type --- */
-  --font-display: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Self-hosted variable fonts (main.tsx imports the @fontsource-variable
+   * packages) carry Latin glyphs/numerals; Hangul falls through to the
+   * system-font tail, since neither ships Korean coverage. */
+  --font-display: "Inter Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, monospace;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 
   --text-xs: 10.5px;
   --text-sm: 12px;
@@ -80,6 +83,11 @@
   --space-lg: 16px;
   --space-xl: 24px;
   --space-2xl: 32px;
+
+  /* Fixed chrome heights, referenced by both the layout and the docks that
+   * must clear them. */
+  --dim-topbar-h: 56px;
+  --dim-statusbar-h: 26px;
 
   /* Tight radii — instrument-panel language, not soft/playful. */
   --radius-xs: 4px;

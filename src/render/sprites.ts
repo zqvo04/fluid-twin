@@ -6,6 +6,7 @@
  */
 
 import { Direction, Tile } from '../grid/types';
+import { NominalSize } from '../domain/catalog/pipes';
 import { pumpPorts, tilePorts } from '../grid/ports';
 import { hasCheckValve } from '../domain/network';
 import { PumpState } from '../analysis/pumpHealth';
@@ -47,6 +48,15 @@ function edgePoint(cx: number, cy: number, half: number, d: Direction): [number,
   const [dx, dy] = DIR_VECTOR[d];
   return [cx + dx * half, cy + dy * half];
 }
+
+/** Relative stroke width per nominal pipe size, so a network's larger runs
+ * read as larger at a glance instead of every pipe drawing identically. */
+const NPS_WIDTH_SCALE: Record<NominalSize, number> = {
+  '2"': 0.72,
+  '4"': 1,
+  '6"': 1.3,
+  '8"': 1.6,
+};
 
 export interface PressureTint {
   /** Normalized 0..1 against the current field range. */
@@ -95,7 +105,7 @@ export function drawTileBody(
   const cx = x + size / 2;
   const cy = y + size / 2;
   const half = size / 2;
-  const pipeW = size * 0.32;
+  const pipeW = size * 0.32 * NPS_WIDTH_SCALE[tile.nps];
   const ports = tilePorts(tile);
 
   const fill = excluded ? EXCLUDED_FILL : pressure ? pressureColor(pressure.t) : PIPE_FILL;

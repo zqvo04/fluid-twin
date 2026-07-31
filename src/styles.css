@@ -33,7 +33,7 @@ body {
 
 .app > .canvas-layer {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--dim-statusbar-h) 0;
 }
 
 .grid-viewport {
@@ -63,7 +63,7 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  height: var(--dim-topbar-h);
   display: flex;
   align-items: center;
   gap: var(--space-lg);
@@ -266,7 +266,7 @@ body {
 .left-dock {
   position: absolute;
   top: 72px;
-  bottom: var(--space-lg);
+  bottom: calc(var(--dim-statusbar-h) + var(--space-lg));
   left: var(--space-lg);
   width: 260px;
   display: flex;
@@ -286,7 +286,7 @@ body {
   top: 72px;
   right: var(--space-lg);
   width: 260px;
-  max-height: calc(100vh - 88px);
+  max-height: calc(100vh - 88px - var(--dim-statusbar-h));
 }
 
 @keyframes panel-in {
@@ -363,6 +363,19 @@ button:active {
 button:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background: var(--color-paper-2);
+}
+
+button.active:disabled:hover {
+  background: var(--color-accent);
 }
 
 button.wide {
@@ -487,6 +500,7 @@ button.danger:hover {
   padding: 6px 8px;
   font: inherit;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .ef input:focus-visible,
@@ -575,7 +589,7 @@ button.danger:hover {
 .legend {
   position: absolute;
   left: 50%;
-  bottom: var(--space-lg);
+  bottom: calc(var(--dim-statusbar-h) + var(--space-lg));
   transform: translateX(-50%);
   min-width: 260px;
   padding: var(--space-md) var(--space-lg);
@@ -736,6 +750,72 @@ button.danger:hover {
 
   .piece-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ===================================================================
+   Status bar — always-visible solver state + cursor readout, the one
+   place these numbers don't require opening a panel.
+   =================================================================== */
+.statusbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--dim-statusbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md);
+  background: var(--color-paper-1);
+  border-top: 1px solid var(--color-line);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+  z-index: 40;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--color-ink-3);
+}
+
+.statusbar-dot.ok {
+  background: var(--color-ok);
+}
+
+.statusbar-dot.danger {
+  background: var(--color-danger);
+}
+
+.statusbar-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--color-line-strong);
+  flex: none;
+}
+
+.statusbar-spacer {
+  flex: 1;
+}
+
+.statusbar-cell {
+  color: var(--color-ink-1);
+}
+
+.statusbar-units {
+  color: var(--color-ink-3);
+}
+
+@media (max-width: 720px) {
+  .statusbar-units {
+    display: none;
   }
 }
 
