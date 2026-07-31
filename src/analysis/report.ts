@@ -138,6 +138,14 @@ export function generateReport(net: PipelineNetwork, result: SteadyResult, fluid
       });
     }
   }
+  for (const c of vuln.circulation) {
+    findings.push({
+      severity: 'warning',
+      component: c.linkId,
+      message: `Pump moves ${(c.pumpFlow * 3600).toFixed(1)} m³/h but only ${(c.throughput * 3600).toFixed(2)} m³/h reaches a source/sink — discharge is likely looping back to its own suction instead of delivering flow.`,
+      clause: 'Network topology',
+    });
+  }
 
   const heads = [...result.heads.values()];
   const totalDemand = net.nodes.reduce((s, n) => s + Math.max(0, n.demand ?? 0), 0);
