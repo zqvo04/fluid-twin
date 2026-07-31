@@ -5,6 +5,7 @@ import { Inspector } from './ui/Inspector';
 import { Toolbar } from './ui/Toolbar';
 import { Legend } from './ui/Legend';
 import { TransientPanel } from './ui/TransientPanel';
+import { StatusBar } from './ui/StatusBar';
 import { useAppStore } from './ui/store';
 import { useAutoSolve } from './ui/useAutoSolve';
 
@@ -40,6 +41,7 @@ export default function App() {
       </div>
       <Inspector />
       <Legend />
+      <StatusBar />
     </div>
   );
 }

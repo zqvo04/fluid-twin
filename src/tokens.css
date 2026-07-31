@@ -81,6 +81,11 @@
   --space-xl: 24px;
   --space-2xl: 32px;
 
+  /* Fixed chrome heights, referenced by both the layout and the docks that
+   * must clear them. */
+  --dim-topbar-h: 56px;
+  --dim-statusbar-h: 26px;
+
   /* Tight radii — instrument-panel language, not soft/playful. */
   --radius-xs: 4px;
   --radius-sm: 6px;
