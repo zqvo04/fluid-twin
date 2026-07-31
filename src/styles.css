@@ -365,6 +365,19 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background: var(--color-paper-2);
+}
+
+button.active:disabled:hover {
+  background: var(--color-accent);
+}
+
 button.wide {
   width: 100%;
 }
@@ -487,6 +500,7 @@ button.danger:hover {
   padding: 6px 8px;
   font: inherit;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .ef input:focus-visible,
