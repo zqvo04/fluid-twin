@@ -10,6 +10,8 @@ import { GridModel, Tile } from '../grid/types';
 import { tilePorts } from '../grid/ports';
 import { CompileResult } from '../grid/compile';
 import { PipelineNetwork } from '../domain/network';
+import { pipeGeometry } from '../domain/catalog/pipes';
+import { LinkFlow } from './particles';
 
 export interface CellPoint {
   col: number;
@@ -81,11 +83,44 @@ export function buildLinkGeometries(grid: GridModel, compiled: CompileResult): M
       .map(tileCenter);
 
     const points = [from, ...mids, to];
-    const physicalLength = Math.max(link.kind === 'pipe' ? (link.length ?? 0) : 0, grid.cellSize * 0.5);
+    // A valve/pump occupies exactly one grid cell, so it gets the same
+    // per-tile length share a single pipe tile would (grid.cellSize) — not
+    // half of one. Forcing it smaller made a particle's speed (v/length)
+    // jump several times faster the instant it entered a valve/pump than it
+    // was in the pipe leading up to it, so it crossed the tile in a
+    // fraction of a frame: not a visible traversal, just a pop.
+    const physicalLength = Math.max(link.kind === 'pipe' ? (link.length ?? 0) : 0, grid.cellSize);
     geometries.set(link.id, { points, physicalLength });
   }
 
   return geometries;
+}
+
+/**
+ * The steady solver leaves a pump link's velocity as NaN — a pump has no
+ * single bore, so no one physically-real value exists — but that NaN also
+ * makes `stepParticles` treat every particle sitting on the pump as
+ * unable to advance and discard+respawn it, every single frame, forever.
+ * Since `spawnParticle` picks uniformly at random across the *whole*
+ * network (weighted by flow), that reads as particles randomly appearing
+ * all over the board with no visible source, worst right on top of the
+ * pump/valve they were just evicted from.
+ *
+ * A pump tile still carries its own nps/schedule (only used for the sprite's
+ * stroke width until now), so it has a real bore for animation purposes even
+ * though the physics model treats it as bore-less. Filling in flow/area here
+ * gives the pump a normal, finite speed instead of evicting through it.
+ */
+export function fillPumpVelocities(grid: GridModel, compiled: CompileResult, flows: Map<string, LinkFlow>): void {
+  for (const tile of grid.tiles) {
+    if (tile.kind !== 'pump') continue;
+    const linkId = compiled.tileLink.get(tile.id);
+    if (!linkId) continue;
+    const lf = flows.get(linkId);
+    if (!lf || Number.isFinite(lf.velocity)) continue;
+    const geo = pipeGeometry(tile.nps, tile.schedule);
+    flows.set(linkId, { flow: lf.flow, velocity: lf.flow / geo.area });
+  }
 }
 
 /** Interpolate a point along a polyline at fraction s (0..1) of its total length. */
