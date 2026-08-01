@@ -4,7 +4,7 @@ import { makeTile, placeTile, updateTile } from '../grid/ops';
 import { compile } from '../grid/compile';
 import { solveSteadyState } from '../physics/steadySolver';
 import { PipelineNetwork } from '../domain/network';
-import { buildLinkGeometries, pointAtFraction } from './linkGeometry';
+import { buildLinkGeometries, fillPumpVelocities, pointAtFraction } from './linkGeometry';
 import {
   buildFlowGraph,
   weightedPick,
@@ -177,6 +177,59 @@ describe('rebalanceOccupancy — population tracks flow, not pipe volume', () =>
     rebalanceOccupancy(particles, graph, rand);
     expect(particles.filter((p) => p.linkId === 'A').length).toBe(100);
     expect(particles.filter((p) => p.linkId === 'B').length).toBe(100);
+  });
+});
+
+describe('fillPumpVelocities — pump links get a finite animation velocity', () => {
+  function buildInlinePump() {
+    // source -> pipe -> pump -> pipe -> sink, all on one row.
+    let grid = emptyGrid(9, 1, 1);
+    grid = placeTile(grid, makeTile('source', { col: 0, row: 0 }, 0, grid));
+    grid = placeTile(grid, makeTile('straight', { col: 1, row: 0 }, 0, grid));
+    // Rotation 0 gives a pump ports [W, E] (suction W, discharge E) per ports.ts.
+    grid = placeTile(grid, makeTile('pump', { col: 2, row: 0 }, 0, grid));
+    grid = placeTile(grid, makeTile('straight', { col: 3, row: 0 }, 0, grid));
+    grid = placeTile(grid, makeTile('sink', { col: 4, row: 0 }, 0, grid));
+    return grid;
+  }
+
+  it('the raw solver result leaves a pump link velocity as NaN', () => {
+    const grid = buildInlinePump();
+    const compiled = compile(grid);
+    const result = solveSteadyState(compiled.network);
+    expect(result.converged).toBe(true);
+    const pumpTile = grid.tiles.find((t) => t.kind === 'pump')!;
+    const pumpLinkId = compiled.tileLink.get(pumpTile.id)!;
+    expect(Number.isFinite(result.links.get(pumpLinkId)!.velocity)).toBe(false);
+  });
+
+  it('fillPumpVelocities gives the pump link a finite velocity, so particles stop evicting through it', () => {
+    const grid = buildInlinePump();
+    const compiled = compile(grid);
+    const result = solveSteadyState(compiled.network);
+    const pumpTile = grid.tiles.find((t) => t.kind === 'pump')!;
+    const pumpLinkId = compiled.tileLink.get(pumpTile.id)!;
+
+    const flows = new Map<string, LinkFlow>();
+    for (const [id, r] of result.links) flows.set(id, { flow: r.flow, velocity: r.velocity });
+    fillPumpVelocities(grid, compiled, flows);
+
+    const pumpFlow = flows.get(pumpLinkId)!;
+    expect(Number.isFinite(pumpFlow.velocity)).toBe(true);
+    expect(Math.abs(pumpFlow.velocity)).toBeGreaterThan(0);
+
+    // With a finite velocity, a particle placed mid-link should advance
+    // and eventually hand off — not get discarded every single step (the
+    // pre-fix NaN branch in stepParticles respawns unconditionally).
+    const graph = buildFlowGraph(compiled.network, flows);
+    const geometries = buildLinkGeometries(grid, compiled);
+    const rand = mulberry32(3);
+    const particle: Particle = { linkId: pumpLinkId, s: 0.1, dir: 1 };
+    const before = particle.s;
+    stepParticles([particle], geometries, graph, flows, 0.05, rand);
+    // It moved along the SAME link instead of being replaced elsewhere.
+    expect(particle.linkId).toBe(pumpLinkId);
+    expect(particle.s).toBeGreaterThan(before);
   });
 });
 

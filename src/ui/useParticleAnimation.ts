@@ -16,7 +16,7 @@ import {
   FlowGraph,
   LinkFlow,
 } from '../sim/particles';
-import { buildLinkGeometries, LinkGeometry } from '../sim/linkGeometry';
+import { buildLinkGeometries, fillPumpVelocities, LinkGeometry } from '../sim/linkGeometry';
 import { drawParticles } from '../render/fluidLayer';
 
 const MAX_DT = 0.05; // clamp long frame gaps (tab backgrounded, etc.)
@@ -42,6 +42,7 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
     }
     const flows = new Map<string, LinkFlow>();
     for (const [id, r] of result.links) flows.set(id, { flow: r.flow, velocity: r.velocity });
+    fillPumpVelocities(grid, compiled, flows);
 
     const graph = buildFlowGraph(compiled.network, flows);
     const geometries = buildLinkGeometries(grid, compiled);
