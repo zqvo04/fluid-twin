@@ -4,9 +4,11 @@
  *
  * Node accounting:
  *  - tee / cross / source / sink each own exactly one node.
- *  - valve / pump each own two nodes ("<id>:a", "<id>:b", one per port) and
- *    the ValveLink/PumpLink directly joining them — they are links, not mere
- *    junctions.
+ *  - valve / pump / strainer / hx / spray each own two nodes ("<id>:a",
+ *    "<id>:b") and the link directly joining them — they are links, not mere
+ *    junctions. Strainer/hx/spray compile to a short PipeLink carrying their
+ *    loss as `minorK`; a spray's `:b` is its atmospheric discharge boundary.
+ *  - basin owns one reservoir node (head = floor elevation + level).
  *  - straight / elbow tiles own no node at all; they are fused into whichever
  *    PipeLink their run belongs to (elbow contributes an `elbow90` fitting).
  *
@@ -26,8 +28,11 @@ import {
   Vec3,
 } from '../domain/network';
 import { FittingType } from '../domain/catalog/fittings';
-import { Cell, Direction, GridModel, Tile, cellElevation, cellKey } from './types';
-import { isPassThroughKind, opposite, tilePorts } from './ports';
+import { pipeGeometry } from '../domain/catalog/pipes';
+import { waterProperties } from '../domain/fluid';
+import { Cell, Direction, GridModel, HxTile, StrainerTile, Tile, cellElevation, cellKey } from './types';
+import { LINK_HUB_KINDS, isPassThroughKind, opposite, tilePorts } from './ports';
+import { validateTags } from './tags';
 import { tileMapByCell, traceRun } from './merge';
 
 export interface CompileResult {
@@ -46,11 +51,32 @@ function nodePosition(grid: GridModel, cell: Cell): Vec3 {
 }
 
 function nodeIdForPort(tile: Tile, dir: Direction): string {
-  if (tile.kind === 'valve' || tile.kind === 'pump') {
+  if (LINK_HUB_KINDS.includes(tile.kind)) {
     const ports = tilePorts(tile);
     return ports.indexOf(dir) === 0 ? `${tile.id}:a` : `${tile.id}:b`;
   }
   return tile.id;
+}
+
+/** Fully blocked screen/valve: huge but finite K keeps the solve well-posed. */
+const BLOCKED_K = 1e12;
+
+/**
+ * Strainer K vs clogging c: flow squeezes through the open fraction (1 − c)
+ * of the screen, so the jet velocity scales 1/(1 − c) and the loss with its
+ * square — K = K_clean / (1 − c)².
+ */
+export function strainerK(tile: StrainerTile): number {
+  return tile.clogging >= 1 ? BLOCKED_K : tile.kClean / (1 - tile.clogging) ** 2;
+}
+
+/**
+ * HX ΔP = k·Q² as a K on the velocity head at the tile's bore area A:
+ * ΔP = K·ρ·V²/2 = K·ρ·Q²/(2A²)  ⇒  K = 2·A²·k/ρ, k = ΔP_design/Q_design².
+ */
+export function hxK(tile: HxTile, rho: number): number {
+  const area = pipeGeometry(tile.nps, tile.schedule).area;
+  return (2 * area * area * tile.designDp) / (rho * tile.designFlow * tile.designFlow);
 }
 
 /**
@@ -78,12 +104,22 @@ function hubNodes(tile: Tile, grid: GridModel): NetworkNode[] {
       return [{ id: tile.id, type: 'junction', position, demand: 0 }];
     case 'source':
       return [{ id: tile.id, type: 'reservoir', position, fixedHead: tile.head }];
+    case 'basin':
+      return [{ id: tile.id, type: 'reservoir', position, fixedHead: position.y + tile.level }];
+    case 'spray':
+      // Inlet junction, then the jet discharging to atmosphere at the header.
+      return [
+        { id: `${tile.id}:a`, type: 'junction', position, demand: 0 },
+        { id: `${tile.id}:b`, type: 'reservoir', position, fixedHead: position.y },
+      ];
     case 'sink':
       return tile.mode === 'head'
         ? [{ id: tile.id, type: 'reservoir', position, fixedHead: tile.head }]
         : [{ id: tile.id, type: 'junction', position, demand: tile.demand }];
     case 'valve':
     case 'pump':
+    case 'strainer':
+    case 'hx':
       return [
         { id: `${tile.id}:a`, type: 'junction', position, demand: 0 },
         { id: `${tile.id}:b`, type: 'junction', position, demand: 0 },
@@ -100,7 +136,8 @@ export function compile(grid: GridModel): CompileResult {
   const tileNodes = new Map<string, string[]>();
   const tileLink = new Map<string, string>();
   const linkRunTiles = new Map<string, string[]>();
-  const issues: ValidationIssue[] = [];
+  const issues: ValidationIssue[] = validateTags(grid);
+  const rho = waterProperties(grid.temperatureC).rho;
 
   const hubs = grid.tiles.filter((t) => !isPassThroughKind(t.kind));
 
@@ -132,11 +169,28 @@ export function compile(grid: GridModel): CompileResult {
         from: `${tile.id}:a`,
         to: `${tile.id}:b`,
         spec: tile.spec,
-        speedRatio: tile.speedRatio,
+        speedRatio: tile.running ? tile.speedRatio : 0,
         checkValve: tile.checkValve,
       };
       links.push(link);
       tileLink.set(tile.id, link.id);
+    } else if (tile.kind === 'strainer' || tile.kind === 'hx' || tile.kind === 'spray') {
+      const link: PipeLink = {
+        id: `L${tile.id}`,
+        kind: 'pipe',
+        from: `${tile.id}:a`,
+        to: `${tile.id}:b`,
+        nps: tile.nps,
+        schedule: tile.schedule,
+        // Lumped element: negligible own length (nonzero for the MOC, see runs below).
+        length: grid.cellSize * 0.1,
+        minorK: tile.kind === 'strainer' ? strainerK(tile) : tile.kind === 'hx' ? hxK(tile, rho) : tile.nozzleK,
+      };
+      links.push(link);
+      tileLink.set(tile.id, link.id);
+      if (tile.kind === 'spray' && grid.tiles.find((t) => t.id === tile.returnBasinId)?.kind !== 'basin') {
+        issues.push({ severity: 'warning', message: `Spray ${tile.tag} returns to no basin.`, ref: tile.id });
+      }
     }
   }
 

@@ -7,6 +7,7 @@
 import { PUMP_50M } from '../domain/catalog/pumps';
 import { Cell, GridModel, Rotation, Tile, TileKind, cellElevation, sameCell } from './types';
 import { nextRotation } from './ports';
+import { nextTag } from './tags';
 
 let counter = 0;
 
@@ -64,9 +65,12 @@ export function makeTile(
     case 'cross':
       return { ...base, kind: 'cross' };
     case 'valve':
-      return { ...base, kind: 'valve', tag: '', valveType: defaults.valveType, opening: 1 }; // TODO(P1-3): auto-assign tag
-    case 'pump':
-      return { ...base, kind: 'pump', tag: '', spec: PUMP_50M, speedRatio: 1, checkValve: true }; // TODO(P1-3): auto-assign tag
+      return { ...base, kind: 'valve', tag: nextTag(grid, 'HV'), service: 'manual', valveType: defaults.valveType, opening: 1 };
+    case 'pump': {
+      // The B of a duty/standby pair is placed as the stopped standby.
+      const tag = nextTag(grid, 'P');
+      return { ...base, kind: 'pump', tag, spec: PUMP_50M, speedRatio: 1, checkValve: true, running: !tag.endsWith('B') };
+    }
     case 'source':
       // No free head above grade: a newly placed IN is an open tank at its
       // own elevation, so flow to a same-elevation OUT needs a pump — head
@@ -74,11 +78,21 @@ export function makeTile(
       return { ...base, kind: 'source', head: cellElevation(grid, cell) };
     case 'sink':
       return { ...base, kind: 'sink', mode: 'head', head: cellElevation(grid, cell), demand: 0 };
+    // Defaults are typical-order placeholders, editable in the Inspector.
     case 'basin':
+      return { ...base, kind: 'basin', tag: nextTag(grid, 'TK'), area: 20, level: 1 };
     case 'strainer':
+      return { ...base, kind: 'strainer', tag: nextTag(grid, 'S'), kClean: 1.5, clogging: 0 };
     case 'hx':
+      return { ...base, kind: 'hx', tag: nextTag(grid, 'E'), designFlow: 0.02, designDp: 50_000 };
     case 'spray':
-      throw new Error(`TODO(P1-2): makeTile('${kind}') defaults`);
+      return {
+        ...base,
+        kind: 'spray',
+        tag: nextTag(grid, 'CT'),
+        nozzleK: 2,
+        returnBasinId: grid.tiles.find((t) => t.kind === 'basin')?.id ?? '',
+      };
   }
 }
 

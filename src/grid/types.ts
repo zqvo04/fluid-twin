@@ -69,6 +69,12 @@ export interface CrossTile extends TileBase {
 export interface ValveTile extends EquipmentBase {
   kind: 'valve';
   valveType: ValveType;
+  /**
+   * Plant role: 'control' = actuated control valve (tag FCV, stroked by
+   * scenario events), 'manual' = hand valve (tag HV, e.g. the bypass).
+   * Same hydraulics either way (V1 Cv curve).
+   */
+  service: 'control' | 'manual';
   /** Fractional opening 0 (closed) .. 1 (fully open). */
   opening: number;
 }
@@ -89,6 +95,12 @@ export interface PumpTile extends EquipmentBase {
    * fitted — see `hasCheckValve` in domain/network.ts.
    */
   checkValve?: boolean;
+  /**
+   * Motor energised. A stopped pump (standby B) is a blocked line, not a
+   * free bypass — it compiles to speed 0, which the solver treats as such.
+   * `speedRatio` is kept as the speed it runs at once started.
+   */
+  running: boolean;
 }
 
 /** Boundary node (reservoir, fixed head). Port: E. */

@@ -102,7 +102,7 @@ PipelineNetwork ──solve──▶ SolveResult / ScenarioFrame
 
 ## 3. V1 자산 분류
 
-V1 제거 전 `git tag v1-final` 생성 → 삭제 파일은 태그에서 언제든 복구 가능. 삭제는 "버림"이 아니라 "작업 트리에서 치움".
+V1 최종 상태 = 커밋 `2bf5f82` (삭제 직전 `main`) → 삭제 파일은 `git checkout 2bf5f82 -- <경로>`로 언제든 복구 가능 (태그는 세션 권한상 생성 불가라 커밋 해시로 대체). 삭제는 "버림"이 아니라 "작업 트리에서 치움".
 
 ### 3.1 유지 — 그대로 (물리·카탈로그 코어, 회귀 기준)
 
@@ -124,7 +124,7 @@ V1 제거 전 `git tag v1-final` 생성 → 삭제 파일은 태그에서 언제
 
 | 경로 | 확장 내용 |
 |---|---|
-| `grid/types.ts` | 신규 타일(`basin` `strainer` `hx` `spray`), 모든 장비에 `tag`, 모델에 `instruments[]`, 스키마 v3 + v2 마이그레이션 |
+| `grid/types.ts` | 신규 타일(`basin` `strainer` `hx` `spray`), 모든 장비에 `tag`, 모델에 `instruments[]`, 스키마 v3 + v1 마이그레이션 (기존 실제 버전은 v1) |
 | `grid/compile.ts` `ports.ts` `merge.ts` `ops.ts` `serialize.ts` | 신규 타일 컴파일·포트·직렬화 |
 | `render/sprites.ts` `tileLayer.ts` | 맵 모드 스타일로 정리 (신규 타일 아이콘) |
 | `ui/store.ts` | `viewMode: 'pfd' | 'map'` (탭 전환), 시나리오 상태, 학습 상태 |
@@ -154,18 +154,18 @@ V1 제거 전 `git tag v1-final` 생성 → 삭제 파일은 태그에서 언제
 
 ### 4.1 세션 운영 규칙 (모든 태스크 공통)
 
-각 태스크는 **새 컨텍스트 창(새 세션)** 에서 독립 실행한다. 세션은 이전 대화를 모르므로 이 문서가 유일한 인수인계다.
+**작업 단위 = 덩어리(단계)**: 한 세션이 의존 순서대로 여러 태스크(보통 한 단계 P1, P2 …)를 묶어 수행하고 **덩어리당 PR 하나**를 연다. 사용자가 확인 후 직접 머지한다. 세션이 바뀌어도 이 문서가 유일한 인수인계다.
 
 **세션 시작 시**
 1. 이 문서 §0–§3 + 자기 태스크 카드(§4.3) 읽기. `CLAUDE.md` 규칙 준수.
-2. §4.4 상태판에서 **의존 태스크가 전부 `✅ 머지`인지 확인**. 아니면 중단하고 보고.
+2. §4.4 상태판에서 **덩어리 밖 의존 태스크가 전부 `✅ 머지`인지 확인**. 아니면 중단하고 보고.
 3. 최신 `main`에서 세션 브랜치 생성.
 
 **세션 종료 시**
 1. 카드의 완료 조건 명령 실행, 결과를 그대로 보고 (실패 시 실패라고 보고).
 2. 공통 게이트: `npm run typecheck && npm test` 통과.
-3. 이 문서 §4.4 상태판의 자기 행을 `🔵 PR`로 갱신 + 비고에 PR 링크/후속 메모. 같은 커밋에 포함.
-4. 커밋 → 푸시 → PR. 머지는 사용자가 하고, 머지 후 사용자가 `✅ 머지`로 바꾼다.
+3. 이 문서 §4.4 상태판의 덩어리 행들을 `🔵 PR`로 갱신 + 비고에 PR 링크/후속 메모. 직전 덩어리가 머지됐으면 그 행들을 `✅`로 갱신 (세션이 머지 여부를 확인해 처리).
+4. 커밋 → 푸시 → PR. 머지는 사용자가 한다.
 
 **금지**: 카드의 "범위 밖" 파일 수정, 카드에 없는 기능 추가, 기존 테스트 기대값 변경(카드가 명시한 경우 제외). 범위 밖 문제 발견 시 상태판 비고에 메모만.
 
@@ -217,7 +217,7 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 - 완료: typecheck 통과, PR 설명에 타입 설계 근거 요약 → 사용자 승인.
 
 **P1-2 · 신규 타일 컴파일** — M · 의존: P1-1 · 병렬: P1-3
-- 할 것: 4개 신규 타일의 포트(`ports.ts`), 컴파일(`compile.ts`, `merge.ts`), 편집(`ops.ts`), 직렬화(`serialize.ts`) + v2→v3 마이그레이션 (태그 없는 v2 파일은 P1-3 규칙과 동일 형식으로 기본 태그 부여).
+- 할 것: 4개 신규 타일의 포트(`ports.ts`), 컴파일(`compile.ts`, `merge.ts`), 편집(`ops.ts`), 직렬화(`serialize.ts`) + v1→v3 마이그레이션 (태그 없는 v2 파일은 P1-3 규칙과 동일 형식으로 기본 태그 부여).
   - `basin` → reservoir 노드 (수두 = 바닥고도 + 수위), `strainer` → 피팅 K, `hx` → 2차 저항, `spray` → 대기 방출 경계(고도 + 노즐 K).
 - 범위 밖: `physics/*`, 렌더러.
 - 완료: 타일별 컴파일 테스트, v2 프리셋 JSON 로드 테스트, 기존 컴파일 테스트 무수정 통과.
@@ -314,12 +314,12 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 
 | ID | 모델 | 상태 | 비고 |
 |---|---|---|---|
-| P0-1 | L | ✅ | [PR #24](https://github.com/zqvo04/fluid-twin/pull/24). 테스트 23/141 → 17/105 (삭제 6파일 35건 + `compile.test.ts`의 `validateGrid` 1건). **유지(§3.3 전제 오류)**: `ui/WarningsPanel.tsx`(`Toolbar.tsx`가 사용 중 — 경고 해설 패널 교체 태스크에서 제거), `examples/demoNetworks.ts`(유지 대상 `analysis/report.test.ts`가 사용). **미완**: `v1-final` 태그는 로컬 생성만, 세션 권한으로 푸시 불가(403) — 사용자가 `2bf5f82`에 태그 푸시 필요. 잔여 참조: `domain/network.ts`·`grid/ops.ts` 주석의 삭제 파일명(범위 밖), `README.md`의 구 문서 링크(P0-2에서 교체) |
+| P0-1 | L | ✅ | [PR #24](https://github.com/zqvo04/fluid-twin/pull/24). 테스트 23/141 → 17/105 (삭제 6파일 35건 + `compile.test.ts`의 `validateGrid` 1건). **유지(§3.3 전제 오류)**: `ui/WarningsPanel.tsx`(`Toolbar.tsx`가 사용 중 — 경고 해설 패널 교체 태스크에서 제거), `examples/demoNetworks.ts`(유지 대상 `analysis/report.test.ts`가 사용). `v1-final` 태그 대신 커밋 `2bf5f82`를 복구 기준으로 §3에 기록 (태그 푸시는 세션 권한 밖). 잔여 참조: `domain/network.ts`·`grid/ops.ts` 주석의 삭제 파일명(범위 밖), `README.md`의 구 문서 링크(P0-2에서 교체) |
 | P0-2 | L | ✅ | [PR #25](https://github.com/zqvo04/fluid-twin/pull/25). `npm run build` 통과. lockfile name/version 동기화 포함 |
-| P1-1 | H | 🔵 | [PR #26](https://github.com/zqvo04/fluid-twin/pull/26). 설계 승인 대기. **P1-2 주의**: 실제 기존 스키마는 v1(§3.2의 "v2"는 오기) → 마이그레이션 대상은 v1→v3, v1 파일은 P1-2 머지 전까지 로드 거부됨. 열린 결정: 밸브 FCV/HV 구분 필드 없음(P1-3), 예비 펌프 초기 정지 표현(`speedRatio=0`?) |
-| P1-2 | M | ⬜ | |
-| P1-3 | M | ⬜ | |
-| P1-4 | H | ⬜ | |
+| P1-1 | H | ✅ | [PR #26](https://github.com/zqvo04/fluid-twin/pull/26). 승인된 결정: 밸브 `service: 'control'\|'manual'`(FCV/HV), 펌프 `running`(예비 B는 정지로 배치), v1 파일 공백 감수 |
+| P1-2 | M | 🔵 | P1 덩어리 PR. 신규 4종 컴파일(strainer/hx/spray = `PipeLink.minorK`, basin = reservoir), v1→v3 마이그레이션(프리셋 전부 네트워크 동일 검증). **범위 밖 수정 1건**: `physics/resistance.ts`·`networkTransient.ts`에 `minorK` 합산 1줄씩 (K-only 요소 표현에 필수). `merge.ts` 변경 불필요 |
+| P1-3 | M | 🔵 | P1 덩어리 PR. `grid/tags.ts`: 배치 시 자동 부여, 형식·코드/역할·중복 검사 → compile issues(warning). 펌프 A/B 자동 짝(shortcut: 단일 서비스 가정) |
+| P1-4 | H | 🔵 | P1 덩어리 PR. `src/readouts.ts`: `elementReadout(model, compiled, result, id)` — 카드 시그니처에 `compiled` 추가(노드 매핑 필요). 수동 요소 유량·입출구는 실제 흐름 방향 기준. 전 타일 12종·계기 4종 테스트 |
 | P2-1 | H | ⬜ | |
 | P2-2 | H | ⬜ | |
 | P2-3 | M | ⬜ | |
