@@ -22,6 +22,11 @@ const BASE_PORTS: Record<TileKind, Direction[]> = {
   pump: ['W', 'E'],
   source: ['E'],
   sink: ['W'],
+  // TODO(P1-2): new V2 tiles — ports as documented in types.ts; compile not wired yet.
+  basin: ['E'],
+  strainer: ['E', 'W'],
+  hx: ['E', 'W'],
+  spray: ['W'],
 };
 
 /** Kinds that are a link in themselves (valve/pump) — two distinct nodes. */

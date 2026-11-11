@@ -39,6 +39,10 @@ const ID_PREFIX: Record<TileKind, string> = {
   pump: 'PMP',
   source: 'SRC',
   sink: 'SNK',
+  basin: 'TK',
+  strainer: 'STR',
+  hx: 'HX',
+  spray: 'SPR',
 };
 
 export function makeTile(
@@ -60,9 +64,9 @@ export function makeTile(
     case 'cross':
       return { ...base, kind: 'cross' };
     case 'valve':
-      return { ...base, kind: 'valve', valveType: defaults.valveType, opening: 1 };
+      return { ...base, kind: 'valve', tag: '', valveType: defaults.valveType, opening: 1 }; // TODO(P1-3): auto-assign tag
     case 'pump':
-      return { ...base, kind: 'pump', spec: PUMP_50M, speedRatio: 1, checkValve: true };
+      return { ...base, kind: 'pump', tag: '', spec: PUMP_50M, speedRatio: 1, checkValve: true }; // TODO(P1-3): auto-assign tag
     case 'source':
       // No free head above grade: a newly placed IN is an open tank at its
       // own elevation, so flow to a same-elevation OUT needs a pump — head
@@ -70,6 +74,11 @@ export function makeTile(
       return { ...base, kind: 'source', head: cellElevation(grid, cell) };
     case 'sink':
       return { ...base, kind: 'sink', mode: 'head', head: cellElevation(grid, cell), demand: 0 };
+    case 'basin':
+    case 'strainer':
+    case 'hx':
+    case 'spray':
+      throw new Error(`TODO(P1-2): makeTile('${kind}') defaults`);
   }
 }
 

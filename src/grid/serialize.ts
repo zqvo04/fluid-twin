@@ -6,7 +6,7 @@
 
 import { GridModel } from './types';
 
-export const GRID_SCHEMA_VERSION = 1;
+export const GRID_SCHEMA_VERSION = 3;
 
 export interface GridProjectFile {
   schemaVersion: number;
