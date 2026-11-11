@@ -1,9 +1,9 @@
 {
-  "name": "fluid-twin-2d",
+  "name": "fluid-twin",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0-v2",
   "type": "module",
-  "description": "2D pipe-network fluid simulation sandbox — grid-based puzzle editor with real hydraulic physics",
+  "description": "Open cooling-water loop operating-scenario analysis platform — 2D PFD + map views on one hydraulic model with real physics",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
