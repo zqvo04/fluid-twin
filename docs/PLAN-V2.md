@@ -315,8 +315,8 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | ID | 모델 | 상태 | 비고 |
 |---|---|---|---|
 | P0-1 | L | ✅ | [PR #24](https://github.com/zqvo04/fluid-twin/pull/24). 테스트 23/141 → 17/105 (삭제 6파일 35건 + `compile.test.ts`의 `validateGrid` 1건). **유지(§3.3 전제 오류)**: `ui/WarningsPanel.tsx`(`Toolbar.tsx`가 사용 중 — 경고 해설 패널 교체 태스크에서 제거), `examples/demoNetworks.ts`(유지 대상 `analysis/report.test.ts`가 사용). **미완**: `v1-final` 태그는 로컬 생성만, 세션 권한으로 푸시 불가(403) — 사용자가 `2bf5f82`에 태그 푸시 필요. 잔여 참조: `domain/network.ts`·`grid/ops.ts` 주석의 삭제 파일명(범위 밖), `README.md`의 구 문서 링크(P0-2에서 교체) |
-| P0-2 | L | 🔵 | [PR #25](https://github.com/zqvo04/fluid-twin/pull/25). `npm run build` 통과. lockfile name/version 동기화 포함 |
-| P1-1 | H | ⬜ | |
+| P0-2 | L | ✅ | [PR #25](https://github.com/zqvo04/fluid-twin/pull/25). `npm run build` 통과. lockfile name/version 동기화 포함 |
+| P1-1 | H | 🔵 | 설계 승인 대기. **P1-2 주의**: 실제 기존 스키마는 v1(§3.2의 "v2"는 오기) → 마이그레이션 대상은 v1→v3, v1 파일은 P1-2 머지 전까지 로드 거부됨. 열린 결정: 밸브 FCV/HV 구분 필드 없음(P1-3), 예비 펌프 초기 정지 표현(`speedRatio=0`?) |
 | P1-2 | M | ⬜ | |
 | P1-3 | M | ⬜ | |
 | P1-4 | H | ⬜ | |

@@ -10,4 +10,8 @@ export const KIND_LABEL: Record<TileKind, string> = {
   pump: '펌프',
   source: 'IN (소스)',
   sink: 'OUT (싱크)',
+  basin: '냉각탑 수조',
+  strainer: '스트레이너',
+  hx: '열교환기',
+  spray: '살수 헤더',
 };
