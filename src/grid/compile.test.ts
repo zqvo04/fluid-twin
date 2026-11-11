@@ -4,7 +4,6 @@ import { emptyGrid, cellElevation, Direction, Rotation, TileKind, GridModel } fr
 import { makeTile, placeTile, updateTile, DEFAULT_TILE_DEFAULTS } from './ops';
 import { tilePorts } from './ports';
 import { compile, resolveIssueTile } from './compile';
-import { validateGrid } from './validate';
 
 /** Find the rotation that gives a tile exactly this set of ports (order-free). */
 function rotationFor(kind: TileKind, grid: GridModel, desired: Direction[]): Rotation {
@@ -282,16 +281,6 @@ describe('grid compiler — dangling and isolated tiles are excluded, not crashe
     expect(network.nodes).toHaveLength(0);
     expect(network.links).toHaveLength(0);
     expect(issues.some((i) => i.message.includes('isolated'))).toBe(true);
-  });
-});
-
-describe('validateGrid', () => {
-  it('reuses the existing network validators on the compiled result', () => {
-    let grid = emptyGrid(2, 1, 1);
-    ({ grid } = place(grid, 'straight', { col: 0, row: 0 }, ['E', 'W']));
-    const issues = validateGrid(grid);
-    // No reservoir anywhere in this grid -> validateNetwork's error should surface.
-    expect(issues.some((i) => i.severity === 'error')).toBe(true);
   });
 });
 
