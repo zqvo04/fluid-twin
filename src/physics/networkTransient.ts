@@ -159,7 +159,7 @@ export class NetworkTransientSim {
       const dx = L / N;
       const re = reynolds(q0, geo.id, this.fluid.rho, this.fluid.mu);
       const f = churchillFriction(re, A106B.roughness / geo.id);
-      const minorK = (link.fittings ?? []).reduce((s, ft) => s + fittingK(ft, link.nps), 0);
+      const minorK = (link.fittings ?? []).reduce((s, ft) => s + fittingK(ft, link.nps), link.minorK ?? 0);
       const B = aAdj / (G * geo.area);
       // Friction per reach + lumped minor loss spread over the reaches.
       const R = ((f * dx) / (geo.id * 2 * G * geo.area * geo.area)) + minorK / (N * 2 * G * geo.area * geo.area);

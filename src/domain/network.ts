@@ -51,6 +51,12 @@ export interface PipeLink {
   length?: number;
   /** Fittings along this run; their K values are summed as a minor loss. */
   fittings?: FittingType[];
+  /**
+   * Extra lumped loss coefficient K [-] on this link's velocity head, added
+   * to the fittings' sum — for in-line equipment with no catalog fitting
+   * (strainer, heat exchanger, spray nozzle).
+   */
+  minorK?: number;
 }
 
 export interface ValveLink {

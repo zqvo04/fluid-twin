@@ -127,7 +127,7 @@ export function compileLink(
 
   if (link.kind === 'pipe') {
     const geo = pipeGeometry(link.nps, link.schedule);
-    const minorK = (link.fittings ?? []).reduce((sum, f) => sum + fittingK(f, link.nps), 0);
+    const minorK = (link.fittings ?? []).reduce((sum, f) => sum + fittingK(f, link.nps), link.minorK ?? 0);
     const data: CompiledPipe = {
       kind: 'resistive',
       area: geo.area,

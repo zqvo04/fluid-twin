@@ -22,18 +22,21 @@ const BASE_PORTS: Record<TileKind, Direction[]> = {
   pump: ['W', 'E'],
   source: ['E'],
   sink: ['W'],
-  // TODO(P1-2): new V2 tiles — ports as documented in types.ts; compile not wired yet.
   basin: ['E'],
   strainer: ['E', 'W'],
   hx: ['E', 'W'],
   spray: ['W'],
 };
 
-/** Kinds that are a link in themselves (valve/pump) — two distinct nodes. */
-export const LINK_HUB_KINDS: TileKind[] = ['valve', 'pump'];
+/**
+ * Kinds that are a link in themselves — two nodes `<id>:a` (port 0) and
+ * `<id>:b` joined by their own link. A spray has one port: `:a` is its inlet
+ * junction, `:b` the atmospheric discharge boundary behind the nozzle.
+ */
+export const LINK_HUB_KINDS: TileKind[] = ['valve', 'pump', 'strainer', 'hx', 'spray'];
 
 /** Kinds that are a single junction node with no link of their own. */
-export const JUNCTION_HUB_KINDS: TileKind[] = ['tee', 'cross', 'source', 'sink'];
+export const JUNCTION_HUB_KINDS: TileKind[] = ['tee', 'cross', 'source', 'sink', 'basin'];
 
 /** Kinds that fuse into a pipe run rather than owning a node. */
 export const PASS_THROUGH_KINDS: TileKind[] = ['straight', 'elbow'];
