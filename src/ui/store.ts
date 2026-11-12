@@ -84,6 +84,9 @@ interface AppState {
   view: Viewport;
   viewMode: ViewMode;
   setViewMode: (m: ViewMode) => void;
+  /** Running guided scenario (learn/guides.ts) and its current step. */
+  guide: { id: string; step: number } | null;
+  setGuide: (g: { id: string; step: number } | null) => void;
 
   mode: EditMode;
   armedKind: TileKind;
@@ -149,6 +152,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   view: defaultViewport(960, 640, INITIAL_GRID.cols, INITIAL_GRID.rows),
   viewMode: 'map',
   setViewMode: (viewMode) => set({ viewMode }),
+  guide: null,
+  setGuide: (guide) => set({ guide }),
 
   mode: 'place',
   armedKind: 'straight',

@@ -323,17 +323,17 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | P2-1 | H | ✅ | [PR #28](https://github.com/zqvo04/fluid-twin/pull/28). `physics/scenario.ts` 제너레이터(프레임 스트리밍 가능) + `grid/scenario.ts` 어댑터(타일 id→링크 id, 수조·살수 복귀). 펌프 정지 = 축동력 기반 관성 감속(차단 체크밸브 뒤에서도 churn 토크로 정지) |
 | P2-2 | H | ✅ | [PR #28](https://github.com/zqvo04/fluid-twin/pull/28). `startPump`, `surgeCheck`, `surgeCheckRecommended`. MOC 마찰을 준정상(매 스텝 유량 기반 f)으로 변경 — 정지 상태 기동 시 f(Re≈0) 고정 문제 해결, 기존 MOC 테스트 무수정 통과. 모터 구동 펌프 있을 때만 Newton 백트래킹(험프 곡선 2-cycle). **발견(범위 밖, 미수정)**: 기존 `tripPump` 회전자 토크 ρgQH/η → 체크밸브 닫히면 토크 0, 회전자가 멈추지 않음. 기존 테스트는 Newton 진동이 만든 가짜 유량으로 통과 중 → 후속 수정 필요(축동력 기반 토크, 시나리오 러너와 동일 방식) |
 | P2-3 | M | ✅ | [PR #28](https://github.com/zqvo04/fluid-twin/pull/28). `RUN_SCENARIO`(프레임 스트리밍, STOP_TRANSIENT로 중단) / `SURGE_CHECK`. 테스트는 실제 워커 모듈을 가짜 `self`로 구동, 메시지 전부 structuredClone 왕복 |
-| P3-1 | L | 🔵 | P3 덩어리 PR. `render/pfdSymbols.ts` 15종(표준 출처 주석), 시트 `docs/v2/pfd-symbols.png` (`node scripts/pfd-symbol-sheet.cjs`) — **사용자 육안 승인 대기** |
-| P3-2 | M | 🔵 | P3 덩어리 PR. `render/pfdLayer.ts` + 공용 `render/renderList.ts`. 라인 번호는 배관 타일이 있는 런에만 표기(장비 직결 런은 ◇번호 + 스트림 테이블) |
-| P3-3 | M | 🔵 | P3 덩어리 PR. `render/mapLayer.ts` = V1 `tileLayer` 그대로 + 말풍선. 신규 4종 아이콘(`sprites.ts`)·팔레트 추가. 말풍선은 선택/호버 요소만(전체 표시 시 1셀 간격에서 겹침). 쉬운 이름은 `KIND_LABEL` 임시 — P4-1 사전으로 교체(shortcut 주석) |
-| P3-4 | M | 🔵 | P3 덩어리 PR. store `viewMode`, 상단 `PFD | 맵` 탭, `GridCanvas` 디스패치, PFD에서 입자 캔버스 숨김. 스크린샷 `docs/v2/mode-{pfd,map}.png` (`node scripts/mode-screenshots.cjs`). **미구현(후속)**: Inspector에서 신규 타일 고유 속성(면적·수위·막힘·설계점·노즐 K·복귀 수조)과 밸브 `service`·펌프 `running` 편집 |
-| P3-5 | H | 🔵 | P3 덩어리 PR. `render/modeAgreement.test.ts`: 시드 고정 무작위 모델 200개(값 비교 500+), 불일치 4종(요소 누락·값 변조·셀 이동·중복) 주입 시 실패 확인 |
-| P4-1 | L | ⬜ | |
-| P4-2 | M | ⬜ | |
-| P4-3 | M | ⬜ | |
-| P4-4 | L→H | ⬜ | |
-| P4-5 | M | ⬜ | |
-| P5-1 | M | ⬜ | |
+| P3-1 | L | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). `render/pfdSymbols.ts` 15종(표준 출처 주석), 시트 `docs/v2/pfd-symbols.png` (`node scripts/pfd-symbol-sheet.cjs`) — **사용자 육안 승인 대기** |
+| P3-2 | M | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). `render/pfdLayer.ts` + 공용 `render/renderList.ts`. 라인 번호는 배관 타일이 있는 런에만 표기(장비 직결 런은 ◇번호 + 스트림 테이블) |
+| P3-3 | M | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). `render/mapLayer.ts` = V1 `tileLayer` 그대로 + 말풍선. 신규 4종 아이콘(`sprites.ts`)·팔레트 추가. 말풍선은 선택/호버 요소만(전체 표시 시 1셀 간격에서 겹침). 쉬운 이름은 `KIND_LABEL` 임시 — P4-1 사전으로 교체(shortcut 주석) |
+| P3-4 | M | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). store `viewMode`, 상단 `PFD | 맵` 탭, `GridCanvas` 디스패치, PFD에서 입자 캔버스 숨김. 스크린샷 `docs/v2/mode-{pfd,map}.png` (`node scripts/mode-screenshots.cjs`). **미구현(후속)**: Inspector에서 신규 타일 고유 속성(면적·수위·막힘·설계점·노즐 K·복귀 수조)과 밸브 `service`·펌프 `running` 편집 |
+| P3-5 | H | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). `render/modeAgreement.test.ts`: 시드 고정 무작위 모델 200개(값 비교 500+), 불일치 4종(요소 누락·값 변조·셀 이동·중복) 주입 시 실패 확인 |
+| P4-1 | L | 🔵 | P4 덩어리 PR. `learn/glossary.ts` 16종(타일 12 + 계기 4): 쉬운 이름·한 줄 설명·심볼 해설·태그 읽는 법. 쉬운 이름은 태그로 세분(펌프 A/B, 제어/수동밸브). 맵의 `KIND_LABEL` 임시 이름 교체 |
+| P4-2 | M | 🔵 | P4 덩어리 PR. PFD = 태그 + 쉬운 이름(작게), 맵 = 쉬운 이름 (태그), Inspector 제목도 탭별. PFD에서 요소 선택 시 Inspector에 심볼 사전(기호·태그·설명). 스크린샷 `docs/v2/learn-*.png` (`node scripts/learn-screenshots.cjs`) |
+| P4-3 | M | 🔵 | P4 덩어리 PR. `learn/guide.ts` 단계(지시문·탭·대상 태그·완료 술어) + `advance`, `ui/GuidePanel.tsx`(시작 시 기준 예제 로드, 기존 보드는 확인 후 교체) |
+| P4-4 | L→H | 🔵 | P4 덩어리 PR. `learn/guides.ts` (a) 펌프 A→B 전환 (b) 제어밸브·바이패스, 각 단계 PFD/맵 왕복. **물리 검수**: 별도 H 세션 대신 `learn/guides.test.ts`가 기준 예제에서 가이드를 끝까지 실행하며 본문에 적힌 수치(병렬 +7 %, 펌프당 BEP 50 %, PI 4.7→5.2 bar, FCV 30 % → 40 m³/h, 바이패스 110 중 80 등)를 전부 검증 |
+| P4-5 | M | 🔵 | P4 덩어리 PR. `learn/why.ts` 운전점 차트(시스템 곡선 = 회전수를 바꿔 재해석한 운전점들 → 망 구조 무관 정확), 밸브 개도–유량 차트, `learn/explain.ts` 경고 3줄(무엇이/왜/바꾸면) → `WarningsPanel`. Inspector 수치도 `readouts` 경유로 교체(기존 `pressureField` 직접 계산 = §1.2 위반이었음) |
+| P5-1 | M | 🔵 | P4 덩어리 PR에 포함(P4-4 가이드가 이 예제의 태그 사용). 6", FCV-101 개도 0.5 → P-101A 92.5 m³/h = BEP 92 %. 우회로 HV-102 닫힘, P-101B 정지 |
 | P5-2 | M | ⬜ | |
 | P5-3 | H | ⬜ | |
 

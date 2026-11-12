@@ -7,7 +7,7 @@
 import { CompileResult } from '../grid/compile';
 import { GridModel, Tile } from '../grid/types';
 import { SolvedState, elementReadout } from '../readouts';
-import { KIND_LABEL } from '../ui/kindLabels';
+import { GLOSSARY, easyName } from '../learn/glossary';
 import { RenderItem, ValueKey, UNIT, fmt, pickValues } from './renderList';
 import { DrawOptions, drawGrid } from './tileLayer';
 import { Viewport, cellSizePx } from './viewport';
@@ -25,14 +25,6 @@ const MAP_VALUES: Partial<Record<Tile['kind'], ValueKey[]>> = {
   sink: ['flowM3h'],
 };
 
-/**
- * Easy name. shortcut: kind label (+ A/B for a pump) until the P4-1 glossary
- * lands; swap this for the glossary lookup then.
- */
-function easyName(tile: Tile): string {
-  const suffix = tile.kind === 'pump' ? / ?([AB])$/.exec(tile.tag)?.[1] : undefined;
-  return suffix ? `${KIND_LABEL[tile.kind]} ${suffix}` : KIND_LABEL[tile.kind];
-}
 
 export function buildMapList(grid: GridModel, compiled: CompileResult, result: SolvedState | null): RenderItem[] {
   const items: RenderItem[] = grid.tiles.map((tile) => {
@@ -41,7 +33,7 @@ export function buildMapList(grid: GridModel, compiled: CompileResult, result: S
       id: tile.id,
       kind: tile.kind,
       cell: tile.cell,
-      labels: 'tag' in tile ? [easyName(tile), tile.tag] : [],
+      labels: 'tag' in tile ? [easyName(tile.kind, tile.tag), tile.tag] : [],
       values: keys ? pickValues(elementReadout(grid, compiled, result, tile.id)!, keys) : {},
     };
   });
@@ -106,7 +98,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gri
         const v = i.values.value;
         return v === undefined ? i.labels[0] : `${i.labels[0]}  ${fmt(v, INSTRUMENT_UNIT[i.kind as keyof typeof INSTRUMENT_UNIT])}`;
       });
-    const title = item.labels.length ? `${item.labels[0]} (${item.labels[1]})` : KIND_LABEL[item.kind as Tile['kind']];
+    const title = item.labels.length ? `${item.labels[0]} (${item.labels[1]})` : GLOSSARY[item.kind].name;
     const lines = [title, ...(values.length ? [values.join(' · ')] : []), ...probes];
     bubble(ctx, view.panX + (item.cell.col + 0.5) * s, view.panY + item.cell.row * s - 4, lines, fontPx);
   }

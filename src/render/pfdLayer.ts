@@ -13,6 +13,8 @@ import { RenderItem, fmt, pickValues } from './renderList';
 import { PfdSymbol, Ink, drawFlowArrow, drawInstrumentBubble, drawPfdSymbol, drawStreamMarker } from './pfdSymbols';
 import { CHROME_INSET, Viewport, cellSizePx, cellToScreen } from './viewport';
 import { HOVER_FILL, SELECT_RING, gridLine, pfdInk } from './theme';
+import { easyName } from '../learn/glossary';
+import { m3sToM3h } from '../domain/units';
 
 export interface PfdItem extends RenderItem {
   symbol?: PfdSymbol;
@@ -32,6 +34,8 @@ export interface PfdRun {
   angle: number | null;
   /** Pipe tiles in the run; 0 = equipment joined directly (no room for a label). */
   pipeTiles: number;
+  /** The run runs up/down at its marker (labels go beside the line, not across it). */
+  vertical: boolean;
 }
 
 export interface PfdList {
@@ -76,7 +80,8 @@ export function buildPfdList(grid: GridModel, compiled: CompileResult, result: S
     id: tile.id,
     kind: tile.kind,
     cell: tile.cell,
-    labels: 'tag' in tile ? [tile.tag] : [],
+    // Dual label, tag first on the PFD (§1.3).
+    labels: 'tag' in tile ? [tile.tag, easyName(tile.kind, tile.tag)] : [],
     values: {},
     ...symbolFor(tile),
   }));
@@ -116,8 +121,11 @@ export function buildPfdList(grid: GridModel, compiled: CompileResult, result: S
       lineNo,
       x: at.x,
       y: at.y,
-      angle: result && Math.abs(flow) > 1e-9 ? Math.atan2(b.y - a.y, b.x - a.x) : null,
+      // No arrow where the table shows 0.0 m³/h: a shut valve's or a stopped
+      // pump's numerical leak (~1e-6 m³/s) is not a flow direction.
+      angle: result && Math.abs(m3sToM3h(flow)) >= 0.05 ? Math.atan2(b.y - a.y, b.x - a.x) : null,
       pipeTiles: runTiles.length,
+      vertical: Math.abs(b.y - a.y) > Math.abs(b.x - a.x),
     });
   }
   const lineNoOf = new Map(runs.map((r) => [r.linkId, r.lineNo]));
@@ -194,6 +202,10 @@ export function drawPfd(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gri
       ctx.fillStyle = ink.ink;
       ctx.font = font(0.16, 600);
       ctx.fillText(item.labels[0], x, y + s * 0.4);
+      if (item.labels[1]) {
+        ctx.font = font(0.12);
+        ctx.fillText(item.labels[1], x, y + s * 0.4 + Math.max(10, s * 0.18));
+      }
     }
   }
 
@@ -215,7 +227,15 @@ export function drawPfd(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gri
     if (run.pipeTiles > 0) {
       ctx.fillStyle = ink.ink;
       ctx.font = font(0.11);
-      ctx.fillText(run.lineNo, x, y + s * 0.12);
+      if (run.vertical) {
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(run.lineNo, x + s * 0.1, y + s * 0.15);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+      } else {
+        ctx.fillText(run.lineNo, x, y + s * 0.12);
+      }
     }
   }
 
