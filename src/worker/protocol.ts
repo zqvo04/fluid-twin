@@ -10,6 +10,9 @@
 import { PipelineNetwork } from '../domain/network';
 import { PumpHealth } from '../analysis/pumpHealth';
 import { WaterHammerConfig } from '../physics/transient';
+import { ScenarioFrame, ScenarioModel } from '../physics/scenario';
+import { SurgeCheckResult } from '../physics/networkTransient';
+import { ScenarioEvent } from '../grid/types';
 
 export interface SolveSteadyRequest {
   type: 'SOLVE_STEADY';
@@ -58,12 +61,40 @@ export interface StartNetTransientRequest {
   seconds: number;
 }
 
+/**
+ * Run a quasi-steady scenario (physics/scenario.ts) and stream its frames.
+ * Event ids are link ids (grid/scenario.ts `networkEvents`). STOP_TRANSIENT
+ * cancels it like any other streamed run.
+ */
+export interface RunScenarioRequest {
+  type: 'RUN_SCENARIO';
+  requestId: number;
+  model: ScenarioModel;
+  events: ScenarioEvent[];
+  durationS: number;
+  dt?: number;
+  /** Scenario steps solved per streamed batch (higher = faster playback). */
+  framesPerTick: number;
+}
+
+/** MOC surge check of one event from the steady state of `network`. */
+export interface SurgeCheckRequest {
+  type: 'SURGE_CHECK';
+  requestId: number;
+  network: PipelineNetwork;
+  /** `id` is a link id; `t` is ignored (the event fires at t = 0). */
+  event: ScenarioEvent;
+  durationS?: number;
+}
+
 export type WorkerRequest =
   | SolveSteadyRequest
   | PingRequest
   | StartTransientRequest
   | StopTransientRequest
-  | StartNetTransientRequest;
+  | StartNetTransientRequest
+  | RunScenarioRequest
+  | SurgeCheckRequest;
 
 /** A non-"ok" engineering finding from analysis/report.ts's generateReport
  * (ASME B31.3 hoop stress, API RP 14E erosion, NPSH margin, valve
@@ -144,9 +175,27 @@ export interface NetTransientFrame {
   done: boolean;
 }
 
+/** One scenario step. Maps in `frame.result` cross the boundary as Maps (structured clone). */
+export interface ScenarioFrameResponse {
+  type: 'SCENARIO_FRAME';
+  requestId: number;
+  frame: ScenarioFrame;
+  done: boolean;
+}
+
+export interface SurgeCheckResponse {
+  type: 'SURGE_CHECK_RESULT';
+  requestId: number;
+  result: SurgeCheckResult;
+  /** Event faster than 10·(2L/a): the quasi-steady timeline misses its surge. */
+  recommended: boolean;
+}
+
 export type WorkerResponse =
   | SolveSteadyResponse
   | PongResponse
   | ErrorResponse
   | TransientFrame
-  | NetTransientFrame;
+  | NetTransientFrame
+  | ScenarioFrameResponse
+  | SurgeCheckResponse;

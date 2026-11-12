@@ -32,6 +32,7 @@ import { waveSpeed } from './waveSpeed';
 import { linkLength } from '../domain/network';
 import { solveSteadyState } from './steadySolver';
 import { solveLinearSystem } from './linalg';
+import { ScenarioEvent } from '../grid/types';
 
 interface TPipe {
   id: string;
@@ -39,7 +40,13 @@ interface TPipe {
   to: number;
   N: number;
   B: number;
+  /** Resistance per reach [s²/m⁵]; friction part refreshed each step from the flow. */
   R: number;
+  /** Friction R per unit Darcy f, and the fixed minor-loss R, per reach. */
+  rPerF: number;
+  rMinor: number;
+  diameter: number;
+  relRough: number;
   area: number;
   H: Float64Array; // N+1 heads
   Q: Float64Array; // N+1 flows
@@ -79,6 +86,11 @@ interface TPump {
   qLast: number; // last solved pump flow [m^3/s] (for the rotor update)
   /** Discharge check valve fitted — blocks reverse flow (see solveNodes). */
   checkValve: boolean;
+  /**
+   * Speed imposed by the motor instead of the rotor ODE: a start-up ramp
+   * (or a pump held stopped). α goes `from` → `to` linearly over [t0, t0+T].
+   */
+  forced: { t0: number; T: number; from: number; to: number } | null;
 }
 
 export interface NetworkTransientResult {
@@ -157,12 +169,14 @@ export class NetworkTransientSim {
       const N = Math.max(1, Math.min(400, Math.round(L / (a * dt))));
       const aAdj = L / (N * dt); // Courant-adjusted wave speed
       const dx = L / N;
-      const re = reynolds(q0, geo.id, this.fluid.rho, this.fluid.mu);
-      const f = churchillFriction(re, A106B.roughness / geo.id);
+      const relRough = A106B.roughness / geo.id;
+      const f = churchillFriction(reynolds(q0, geo.id, this.fluid.rho, this.fluid.mu), relRough);
       const minorK = (link.fittings ?? []).reduce((s, ft) => s + fittingK(ft, link.nps), link.minorK ?? 0);
       const B = aAdj / (G * geo.area);
       // Friction per reach + lumped minor loss spread over the reaches.
-      const R = ((f * dx) / (geo.id * 2 * G * geo.area * geo.area)) + minorK / (N * 2 * G * geo.area * geo.area);
+      const rPerF = dx / (geo.id * 2 * G * geo.area * geo.area);
+      const rMinor = minorK / (N * 2 * G * geo.area * geo.area);
+      const R = f * rPerF + rMinor;
 
       const from = nodeIndex.get(link.from)!;
       const to = nodeIndex.get(link.to)!;
@@ -174,7 +188,7 @@ export class NetworkTransientSim {
         H[i] = hFrom + (hTo - hFrom) * (i / N);
         Q[i] = q0;
       }
-      return { id: link.id, from, to, N, B, R, area: geo.area, H, Q, cpEnd: 0, cmEnd: 0 };
+      return { id: link.id, from, to, N, B, R, rPerF, rMinor, diameter: geo.id, relRough, area: geo.area, H, Q, cpEnd: 0, cmEnd: 0 };
     });
 
     this.valves = net.links
@@ -204,6 +218,8 @@ export class NetworkTransientSim {
         const to = nodeIndex.get(l.to)!;
         const gain = (steady.heads.get(l.to) ?? 0) - (steady.heads.get(l.from) ?? 0);
         const s = l.spec;
+        // A pump stopped at t=0 (standby) is held at rest until startPump().
+        const stopped = l.speedRatio <= 0.02;
         return {
           id: l.id,
           from,
@@ -213,13 +229,14 @@ export class NetworkTransientSim {
           a0: s.a0,
           a1: s.a1,
           a2: s.a2,
-          alpha: 1,
+          alpha: stopped ? 0 : 1,
           tripped: false,
           inertia: s.inertia,
           omegaR: (s.ratedRpm * 2 * Math.PI) / 60,
           etaR: bepEfficiency(s),
           qLast: steady.links.get(l.id)?.flow ?? 0,
           checkValve: hasCheckValve(l),
+          forced: stopped ? { t0: 0, T: 0, from: 0, to: 0 } : null,
         };
       });
 
@@ -242,7 +259,27 @@ export class NetworkTransientSim {
    *  spins down under fluid torque from here on. */
   tripPump(pumpId: string): void {
     const p = this.pumps.find((x) => x.id === pumpId);
-    if (p) p.tripped = true;
+    if (p) {
+      p.tripped = true;
+      p.forced = null;
+    }
+  }
+
+  /**
+   * Start a pump: the motor drives the speed ratio linearly from its current
+   * value to `targetSpeed` over `rampS` seconds (soft-starter / VFD ramp, a
+   * forced boundary condition), the pump following its affinity-scaled curve.
+   */
+  startPump(pumpId: string, rampS: number, targetSpeed = 1): void {
+    const p = this.pumps.find((x) => x.id === pumpId);
+    if (!p) return;
+    p.tripped = false;
+    p.forced = { t0: this.time, T: rampS, from: p.alpha, to: targetSpeed };
+  }
+
+  /** Longest one-way wave travel time L/a over all pipes [s]. */
+  get maxTravelTime(): number {
+    return Math.max(0, ...this.pipes.map((p) => p.N * this.dt));
   }
 
   /** Pump speed ratio N/N_rated (1 = rated, 0 = stopped). */
@@ -285,10 +322,23 @@ export class NetworkTransientSim {
   step(): void {
     const { pipes } = this;
 
-    // 1) Characteristic constants + interior advance for every pipe.
+    // 0) Motor-driven pumps: speed at the new time level.
+    const tNew = this.time + this.dt;
+    for (const p of this.pumps) {
+      const r = p.forced;
+      if (r) p.alpha = r.from + (r.to - r.from) * (r.T > 0 ? Math.min(1, Math.max(0, (tNew - r.t0) / r.T)) : 1);
+    }
+
+    // 1) Characteristic constants + interior advance for every pipe. Friction
+    // is quasi-steady: f follows each pipe's current mean flow, so a line that
+    // starts at rest (pump start-up) is not stuck with its zero-flow f.
     const nextH: Float64Array[] = [];
     const nextQ: Float64Array[] = [];
     for (const p of pipes) {
+      let qMean = 0;
+      for (let i = 0; i <= p.N; i++) qMean += Math.abs(p.Q[i]);
+      qMean /= p.N + 1;
+      p.R = churchillFriction(reynolds(qMean, p.diameter, this.fluid.rho, this.fluid.mu), p.relRough) * p.rPerF + p.rMinor;
       const { N, B, R, H, Q } = p;
       p.cpEnd = H[N - 1] + B * Q[N - 1] - R * Q[N - 1] * Math.abs(Q[N - 1]);
       p.cmEnd = H[1] - B * Q[1] + R * Q[1] * Math.abs(Q[1]);
@@ -337,7 +387,7 @@ export class NetworkTransientSim {
     // torque, the fluid torque T = ρ g Q H / (η ω) decelerates the rotor, so a
     // heavier rotor (more inertia) sustains flow longer and softens the surge.
     for (const p of this.pumps) {
-      if (!p.tripped) continue;
+      if (!p.tripped || p.forced) continue;
       const q = Math.max(0, p.qLast);
       const hPump = Math.max(0, this.nodeHead[p.to] - this.nodeHead[p.from]);
       const omega = Math.max(p.alpha * p.omegaR, 0.02 * p.omegaR);
@@ -354,8 +404,15 @@ export class NetworkTransientSim {
     const n = this.nUnknown;
     if (n === 0) return;
     const H = this.nodeHead;
+    // Backtracking: a step that raises the residual is halved instead of
+    // taken (a pump curve's kink at shutoff otherwise traps Newton in a 2-cycle).
+    // Only with a motor-driven pump present, so trip-only runs keep their
+    // original iteration exactly.
+    const robust = this.pumps.some((p) => p.forced);
+    let prevNorm = Infinity;
+    let last: number[] | null = null;
 
-    for (let iter = 0; iter < 8; iter++) {
+    for (let iter = 0; iter < (robust ? 30 : 8); iter++) {
       const F = new Array<number>(n).fill(0);
       const J: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(0));
 
@@ -402,7 +459,7 @@ export class NetworkTransientSim {
       for (const p of this.pumps) {
         const uf = this.unknownIndex[p.from];
         const ut = this.unknownIndex[p.to];
-        if (!p.tripped) {
+        if (!p.tripped && !p.forced) {
           // Stiff head-gain link. Once the check valve shuts (the surge has
           // pushed the discharge above what the pump can hold), the same link
           // becomes near-non-conducting instead of passing flow backwards —
@@ -416,7 +473,7 @@ export class NetworkTransientSim {
           p.qLast = q;
           continue;
         }
-        // Tripped: solve H_to - H_from = a0 α² - a1 α Q - a2 Q²  for Q >= 0.
+        // Tripped or motor-driven: solve H_to - H_from = a0 α² - a1 α Q - a2 Q²  for Q >= 0.
         // Q is clamped non-negative below, which is the check valve; a tripped
         // pump without one would need a four-quadrant curve (out of scope).
         const a = p.alpha;
@@ -430,6 +487,19 @@ export class NetworkTransientSim {
             q = qs;
             const denom = 2 * p.a2 * qs + p.a1 * a;
             dq = Math.abs(denom) > 1e-9 ? -1 / denom : 0;
+          }
+        }
+        // A rising (hump) curve, a1 < 0, peaks at Q_pk = −a1α/(2a2): above that
+        // head the flow would jump Q_pk → 0, which stalls Newton as a ramping
+        // pump crosses onset. Motor-driven pumps fall linearly to 0 over a thin
+        // head band instead (the trip path keeps its original law).
+        const qPk = p.forced && p.a2 > 1e-9 ? Math.max(0, (-p.a1 * a) / (2 * p.a2)) : 0;
+        if (qPk > 0) {
+          const hPk = p.a0 * a * a + (p.a1 * a) ** 2 / (4 * p.a2);
+          const band = 0.01 * hPk + 0.05;
+          if (dHba >= hPk) {
+            q = Math.max(0, qPk * (1 - (dHba - hPk) / band));
+            dq = q > 0 ? -qPk / band : 0;
           }
         }
         p.qLast = q;
@@ -448,6 +518,22 @@ export class NetworkTransientSim {
         }
       }
 
+      const norm = Math.hypot(...F);
+      if (robust && last && norm > prevNorm) {
+        let maxBack = 0;
+        for (let i = 0; i < this.nodeCount; i++) {
+          const ui = this.unknownIndex[i];
+          if (ui >= 0) {
+            last[ui] *= 0.5;
+            H[i] -= last[ui];
+            maxBack = Math.max(maxBack, Math.abs(last[ui]));
+          }
+        }
+        if (maxBack < 1e-7) break;
+        continue;
+      }
+      prevNorm = norm;
+
       // Solve J * dH = -F and update.
       const rhs = F.map((f) => -f);
       let dH: number[];
@@ -456,6 +542,7 @@ export class NetworkTransientSim {
       } catch {
         break; // singular (e.g. isolated node); keep current heads
       }
+      last = dH;
       let maxStep = 0;
       for (let i = 0; i < this.nodeCount; i++) {
         const ui = this.unknownIndex[i];
@@ -467,4 +554,85 @@ export class NetworkTransientSim {
       if (maxStep < 1e-7) break;
     }
   }
+}
+
+/** One-way wave travel time L/a of every pipe [s]. */
+function travelTimes(net: PipelineNetwork): number[] {
+  const fluid = waterProperties(net.temperatureC);
+  return net.links.flatMap((l) => {
+    if (l.kind !== 'pipe') return [];
+    const geo = pipeGeometry(l.nps, l.schedule);
+    return [linkLength(net, l) / waveSpeed(fluid.bulk, fluid.rho, geo.id, geo.wall, A106B.E)];
+  });
+}
+
+/** How long an event takes to act [s]: ramp / stroke time; a trip is instant. */
+export function eventDuration(e: ScenarioEvent): number {
+  return e.kind === 'pumpStart' ? e.rampS : e.kind === 'valveStroke' ? e.timeS : 0;
+}
+
+/**
+ * Whether an event is fast enough to need a surge check: T < 10·(2L/a), with
+ * 2L/a the longest pipe's round trip (PLAN-V2 §2.2). Slower events are
+ * covered by the quasi-steady timeline.
+ */
+export function surgeCheckRecommended(net: PipelineNetwork, e: ScenarioEvent): boolean {
+  return eventDuration(e) < 10 * 2 * Math.max(0, ...travelTimes(net));
+}
+
+export interface SurgeCheckResult {
+  durationS: number;
+  dt: number;
+  /** Node id → max / min head over the run [m]. */
+  maxHead: Record<string, number>;
+  minHead: Record<string, number>;
+  /** Largest head rise above the initial steady head, and where. */
+  peak: { nodeId: string; head: number; rise: number };
+  /** Largest head drop below the initial steady head, and where. */
+  trough: { nodeId: string; head: number; drop: number };
+}
+
+/**
+ * Surge check: run the MOC from the steady state of `net` with one event
+ * applied at t = 0 (its `t` is ignored; `id` is a link id) and report the
+ * head envelope. Default duration: the event plus 10 wave round trips.
+ */
+export function surgeCheck(net: PipelineNetwork, e: ScenarioEvent, durationS?: number): SurgeCheckResult {
+  const duration = durationS ?? eventDuration(e) + 20 * Math.max(0, ...travelTimes(net));
+  // dt floor keeps a short lumped link from forcing millions of steps.
+  const sim = new NetworkTransientSim(net, 8, duration / 4000);
+  const h0 = Float64Array.from(sim.nodeHead);
+  const max = Float64Array.from(h0);
+  const min = Float64Array.from(h0);
+  const valve = e.kind === 'valveStroke' ? net.links.find((l) => l.id === e.id) : undefined;
+  const o0 = valve?.kind === 'valve' ? valve.opening : 1;
+  if (e.kind === 'pumpStart') sim.startPump(e.id, e.rampS);
+  if (e.kind === 'pumpStop') sim.tripPump(e.id);
+
+  while (sim.time < duration - 1e-12) {
+    if (e.kind === 'valveStroke') {
+      const frac = e.timeS > 0 ? Math.min(1, (sim.time + sim.dt) / e.timeS) : 1;
+      sim.setValveOpening(e.id, o0 + (e.target - o0) * frac);
+    }
+    sim.step();
+    for (let i = 0; i < sim.nodeCount; i++) {
+      max[i] = Math.max(max[i], sim.nodeHead[i]);
+      min[i] = Math.min(min[i], sim.nodeHead[i]);
+    }
+  }
+
+  let peak = { nodeId: sim.nodeIds[0] ?? '', head: max[0] ?? 0, rise: -Infinity };
+  let trough = { nodeId: sim.nodeIds[0] ?? '', head: min[0] ?? 0, drop: -Infinity };
+  sim.nodeIds.forEach((id, i) => {
+    if (max[i] - h0[i] > peak.rise) peak = { nodeId: id, head: max[i], rise: max[i] - h0[i] };
+    if (h0[i] - min[i] > trough.drop) trough = { nodeId: id, head: min[i], drop: h0[i] - min[i] };
+  });
+  return {
+    durationS: sim.time,
+    dt: sim.dt,
+    maxHead: Object.fromEntries(sim.nodeIds.map((id, i) => [id, max[i]])),
+    minHead: Object.fromEntries(sim.nodeIds.map((id, i) => [id, min[i]])),
+    peak,
+    trough,
+  };
 }

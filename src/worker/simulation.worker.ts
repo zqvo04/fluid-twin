@@ -7,10 +7,11 @@
 
 import { solveSteadyState } from '../physics/steadySolver';
 import { WaterHammerSim } from '../physics/transient';
-import { NetworkTransientSim } from '../physics/networkTransient';
+import { NetworkTransientSim, surgeCheck, surgeCheckRecommended } from '../physics/networkTransient';
+import { runScenario } from '../physics/scenario';
 import { generateReport, reportFindingsToUiFindings } from '../analysis/report';
 import { analyzePumpHealth } from '../analysis/pumpHealth';
-import { WorkerRequest, WorkerResponse, StartTransientRequest, StartNetTransientRequest } from './protocol';
+import { WorkerRequest, WorkerResponse, StartTransientRequest, StartNetTransientRequest, RunScenarioRequest } from './protocol';
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -134,6 +135,32 @@ function runNetTransient(req: StartNetTransientRequest) {
   transientTimer = setTimeout(tick, frameMs);
 }
 
+function runScenarioStream(req: RunScenarioRequest) {
+  stopTransient();
+  const frames = runScenario(req.model, req.events, { durationS: req.durationS, dt: req.dt });
+  const tick = () => {
+    try {
+      for (let k = 0; k < req.framesPerTick; k++) {
+        const next = frames.next();
+        if (next.done) break;
+        const done = next.value.t >= req.durationS - 1e-9;
+        const res: WorkerResponse = { type: 'SCENARIO_FRAME', requestId: req.requestId, frame: next.value, done };
+        ctx.postMessage(res);
+        if (done) {
+          transientTimer = null;
+          return;
+        }
+      }
+      transientTimer = setTimeout(tick, 25);
+    } catch (err) {
+      transientTimer = null;
+      const res: WorkerResponse = { type: 'ERROR', requestId: req.requestId, message: err instanceof Error ? err.message : String(err) };
+      ctx.postMessage(res);
+    }
+  };
+  transientTimer = setTimeout(tick, 0);
+}
+
 ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
 
@@ -154,6 +181,20 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       case 'STOP_TRANSIENT': {
         stopTransient();
+        break;
+      }
+      case 'RUN_SCENARIO': {
+        runScenarioStream(msg);
+        break;
+      }
+      case 'SURGE_CHECK': {
+        const res: WorkerResponse = {
+          type: 'SURGE_CHECK_RESULT',
+          requestId: msg.requestId,
+          result: surgeCheck(msg.network, msg.event, msg.durationS),
+          recommended: surgeCheckRecommended(msg.network, msg.event),
+        };
+        ctx.postMessage(res);
         break;
       }
       case 'SOLVE_STEADY': {

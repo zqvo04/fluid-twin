@@ -317,12 +317,12 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | P0-1 | L | ✅ | [PR #24](https://github.com/zqvo04/fluid-twin/pull/24). 테스트 23/141 → 17/105 (삭제 6파일 35건 + `compile.test.ts`의 `validateGrid` 1건). **유지(§3.3 전제 오류)**: `ui/WarningsPanel.tsx`(`Toolbar.tsx`가 사용 중 — 경고 해설 패널 교체 태스크에서 제거), `examples/demoNetworks.ts`(유지 대상 `analysis/report.test.ts`가 사용). `v1-final` 태그 대신 커밋 `2bf5f82`를 복구 기준으로 §3에 기록 (태그 푸시는 세션 권한 밖). 잔여 참조: `domain/network.ts`·`grid/ops.ts` 주석의 삭제 파일명(범위 밖), `README.md`의 구 문서 링크(P0-2에서 교체) |
 | P0-2 | L | ✅ | [PR #25](https://github.com/zqvo04/fluid-twin/pull/25). `npm run build` 통과. lockfile name/version 동기화 포함 |
 | P1-1 | H | ✅ | [PR #26](https://github.com/zqvo04/fluid-twin/pull/26). 승인된 결정: 밸브 `service: 'control'\|'manual'`(FCV/HV), 펌프 `running`(예비 B는 정지로 배치), v1 파일 공백 감수 |
-| P1-2 | M | 🔵 | P1 덩어리 PR. 신규 4종 컴파일(strainer/hx/spray = `PipeLink.minorK`, basin = reservoir), v1→v3 마이그레이션(프리셋 전부 네트워크 동일 검증). **범위 밖 수정 1건**: `physics/resistance.ts`·`networkTransient.ts`에 `minorK` 합산 1줄씩 (K-only 요소 표현에 필수). `merge.ts` 변경 불필요 |
-| P1-3 | M | 🔵 | P1 덩어리 PR. `grid/tags.ts`: 배치 시 자동 부여, 형식·코드/역할·중복 검사 → compile issues(warning). 펌프 A/B 자동 짝(shortcut: 단일 서비스 가정) |
-| P1-4 | H | 🔵 | P1 덩어리 PR. `src/readouts.ts`: `elementReadout(model, compiled, result, id)` — 카드 시그니처에 `compiled` 추가(노드 매핑 필요). 수동 요소 유량·입출구는 실제 흐름 방향 기준. 전 타일 12종·계기 4종 테스트 |
-| P2-1 | H | ⬜ | |
-| P2-2 | H | ⬜ | |
-| P2-3 | M | ⬜ | |
+| P1-2 | M | ✅ | [PR #27](https://github.com/zqvo04/fluid-twin/pull/27). 신규 4종 컴파일(strainer/hx/spray = `PipeLink.minorK`, basin = reservoir), v1→v3 마이그레이션(프리셋 전부 네트워크 동일 검증). **범위 밖 수정 1건**: `physics/resistance.ts`·`networkTransient.ts`에 `minorK` 합산 1줄씩 (K-only 요소 표현에 필수). `merge.ts` 변경 불필요 |
+| P1-3 | M | ✅ | [PR #27](https://github.com/zqvo04/fluid-twin/pull/27). `grid/tags.ts`: 배치 시 자동 부여, 형식·코드/역할·중복 검사 → compile issues(warning). 펌프 A/B 자동 짝(shortcut: 단일 서비스 가정) |
+| P1-4 | H | ✅ | [PR #27](https://github.com/zqvo04/fluid-twin/pull/27). `src/readouts.ts`: `elementReadout(model, compiled, result, id)` — 카드 시그니처에 `compiled` 추가(노드 매핑 필요). 수동 요소 유량·입출구는 실제 흐름 방향 기준. 전 타일 12종·계기 4종 테스트 |
+| P2-1 | H | 🔵 | P2 덩어리 PR. `physics/scenario.ts` 제너레이터(프레임 스트리밍 가능) + `grid/scenario.ts` 어댑터(타일 id→링크 id, 수조·살수 복귀). 펌프 정지 = 축동력 기반 관성 감속(차단 체크밸브 뒤에서도 churn 토크로 정지) |
+| P2-2 | H | 🔵 | P2 덩어리 PR. `startPump`, `surgeCheck`, `surgeCheckRecommended`. MOC 마찰을 준정상(매 스텝 유량 기반 f)으로 변경 — 정지 상태 기동 시 f(Re≈0) 고정 문제 해결, 기존 MOC 테스트 무수정 통과. 모터 구동 펌프 있을 때만 Newton 백트래킹(험프 곡선 2-cycle). **발견(범위 밖, 미수정)**: 기존 `tripPump` 회전자 토크 ρgQH/η → 체크밸브 닫히면 토크 0, 회전자가 멈추지 않음. 기존 테스트는 Newton 진동이 만든 가짜 유량으로 통과 중 → 후속 수정 필요(축동력 기반 토크, 시나리오 러너와 동일 방식) |
+| P2-3 | M | 🔵 | P2 덩어리 PR. `RUN_SCENARIO`(프레임 스트리밍, STOP_TRANSIENT로 중단) / `SURGE_CHECK`. 테스트는 실제 워커 모듈을 가짜 `self`로 구동, 메시지 전부 structuredClone 왕복 |
 | P3-1 | L | ⬜ | |
 | P3-2 | M | ⬜ | |
 | P3-3 | M | ⬜ | |
@@ -346,11 +346,11 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | 1 | 마찰계수 | Churchill vs Moody/Colebrook | V1 테스트 존재 |
 | 2 | 망해석 | GGA vs 손계산 루프 예제 | V1 테스트 존재 |
 | 3 | 수격 | Joukowsky `a·V0/g`, 주기 `4L/a` | V1 테스트 존재 |
-| 4 | 단일 펌프 운전점 | 2차 펌프곡선 ∩ 2차 시스템곡선 해석해 (근의 공식) | 신규 |
-| 5 | 병렬 펌프 A+B | 동일 펌프 2대: 같은 수두에서 유량 2배 합성 곡선과 교점 일치 | 신규 |
-| 6 | 수조 질량 보존 | 시나리오 전 구간 `∫(Q_in − Q_out)dt = A·Δh` (상대오차 < 1e-6) | 신규 |
-| 7 | 준정상 정합 | 이벤트 없는 시나리오 = 정상해 (모든 스텝 동일) | 신규 |
-| 8 | MOC 펌프 기동 | 정상 도달 후 MOC 해 = GGA 정상해 (허용오차 < 0.5 %) | 신규 |
+| 4 | 단일 펌프 운전점 | 2차 펌프곡선 ∩ 2차 시스템곡선 해석해 (근의 공식) | ✅ `physics/scenario.test.ts` (근의 공식, 상대오차 < 1e-6) |
+| 5 | 병렬 펌프 A+B | 동일 펌프 2대: 같은 수두에서 유량 2배 합성 곡선과 교점 일치 | ✅ `physics/scenario.test.ts` (합성곡선 교점 < 1e-6, A→B 전환 포함) |
+| 6 | 수조 질량 보존 | 시나리오 전 구간 `∫(Q_in − Q_out)dt = A·Δh` (상대오차 < 1e-6) | ✅ `physics/scenario.test.ts` (2개 수조, 상대오차 < 1e-6, 총량 < 1e-9) |
+| 7 | 준정상 정합 | 이벤트 없는 시나리오 = 정상해 (모든 스텝 동일) | ✅ `physics/scenario.test.ts` (전 스텝 1e-9) |
+| 8 | MOC 펌프 기동 | 정상 도달 후 MOC 해 = GGA 정상해 (허용오차 < 0.5 %) | ✅ `physics/pumpStart.test.ts` (< 0.5 %) |
 | 9 | 제어밸브 | 개도별 유량 = Cv 특성곡선 계산값 | 신규 |
 | 10 | 모드 일치 | §1.2 불변식 테스트 | 신규 |
 
