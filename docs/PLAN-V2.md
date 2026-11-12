@@ -341,11 +341,11 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 
 | ID | 내용 | 근거 |
 |---|---|---|
-| F1 | 🔵 상태바 "송출" = `readouts.throughputM3h`(계통 합계 셀렉터). 재생 중엔 프레임 값, 비수렴 해에선 표시 안 함 | 이 PR |
-| F2 | 🔵 범례: 색 = 벽면 하중 압력이라는 설명 + 정확한 값의 위치 안내, PFD 탭에선 색 척도 숨김, 재생 프레임 추종 | 이 PR |
-| F3 | 🔵 "서지 점검" 패널(`ui/SurgePanel.tsx`): 이벤트 3종(밸브 조작·펌프 정지·펌프 기동), 10·(2L/a) 기준 "권장" 배지, 실시간 압력파 + 최대 상승 위치(태그·이동). 배치 `surgeCheck`와 같은 sim(`surgeSim`)이라 숫자 동일. 시나리오 이벤트에도 배지. 스크린샷 `docs/v2/surge-check.png` | 이 PR |
+| F1 | ✅ 상태바 "송출" = `readouts.throughputM3h`(계통 합계 셀렉터). 재생 중엔 프레임 값, 비수렴 해에선 표시 안 함 | [PR #33](https://github.com/zqvo04/fluid-twin/pull/33) |
+| F2 | ✅ 범례: 색 = 벽면 하중 압력이라는 설명 + 정확한 값의 위치 안내, PFD 탭에선 색 척도 숨김, 재생 프레임 추종 | [PR #33](https://github.com/zqvo04/fluid-twin/pull/33) |
+| F3 | ✅ "서지 점검" 패널(`ui/SurgePanel.tsx`): 이벤트 3종(밸브 조작·펌프 정지·펌프 기동), 10·(2L/a) 기준 "권장" 배지, 실시간 압력파 + 최대 상승 위치(태그·이동). 배치 `surgeCheck`와 같은 sim(`surgeSim`)이라 숫자 동일. 시나리오 이벤트에도 배지. 스크린샷 `docs/v2/surge-check.png` | [PR #33](https://github.com/zqvo04/fluid-twin/pull/33) |
 | F4 | ✅ [PR #32](https://github.com/zqvo04/fluid-twin/pull/32) 시나리오 재생 UI — 이벤트 목록 편집·예제·재생·시각 슬라이더. 재생 중 두 탭·Inspector·입자·상태바가 같은 프레임(`gridAtFrame` + 프레임 결과 → `readouts`), Inspector 편집 잠금. 스크린샷 `docs/v2/scenario-*.png` | P2-3 워커는 있으나 화면 진입점 없음 |
-| F5 | 수조 고갈(수위 < 0) 처리, 회전자 기계 손실 | VNV.md 알려진 한계 |
+| F5 | 🔵 회전자: 베어링·씰 마찰(정격 토크 1.5 %)을 MOC 트립·시나리오 감속 공통 `rotorBrakingTorque`로 → 유한 시간 정지. 수조 고갈: 다음 스텝에 바닥 아래로 갈 수조는 흡입 상실(그 수조에서 빨아들이는 펌프 = 막힌 배관) → 질량 정확 보존, 재생 패널 경고 | 이 PR |
 
 ---
 

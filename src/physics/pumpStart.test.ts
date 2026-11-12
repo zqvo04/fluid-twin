@@ -127,16 +127,16 @@ describe('tripped rotor (P5-3 fix)', () => {
     const sim = new NetworkTransientSim(net);
     sim.tripPump('PB');
     let shutAt = -1;
-    let at60 = 1;
-    while (sim.time < 120) {
+    let stopAt = -1;
+    while (sim.time < 300 && stopAt < 0) {
       sim.step();
       if (shutAt < 0 && sim.pipeFlow('P2') <= 1e-6) shutAt = sim.time;
-      if (at60 === 1 && sim.time >= 60) at60 = sim.pumpSpeed('PB');
+      if (sim.pumpSpeed('PB') === 0) stopAt = sim.time;
     }
     expect(shutAt).toBeGreaterThan(0); // the check valve did shut: flow stopped while spinning
-    // Churn torque ∝ n² gives a hyperbolic run-down (no bearing drag is modelled),
-    // still falling after the valve shut; ρgQH/η stalled here at n ≈ 0.39.
-    expect(sim.pumpSpeed('PB')).toBeLessThan(0.1);
-    expect(sim.pumpSpeed('PB')).toBeLessThan(at60);
+    // Churn torque (∝ n²) alone only decays hyperbolically, and ρgQH/η stalled
+    // at n ≈ 0.39; bearing/seal drag brings the rotor to rest in finite time.
+    expect(stopAt).toBeGreaterThan(shutAt);
+    expect(stopAt).toBeLessThan(300);
   });
 });
