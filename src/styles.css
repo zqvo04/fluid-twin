@@ -838,3 +838,9 @@ button.danger:hover {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* V2 learning layer */
+.diag-explain { display: block; line-height: 1.45; }
+.readout.glossary p { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }
+.panel.guide p { font-size: var(--text-sm); line-height: 1.5; margin: 6px 0; }
+.panel.guide .wide + .wide { margin-top: 6px; }

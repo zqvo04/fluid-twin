@@ -72,6 +72,18 @@ export function nextRotation(r: Rotation): Rotation {
   return (((r + 90) % 360) as Rotation);
 }
 
+/**
+ * The rotation giving `kind` exactly these ports. Order-free, except for a
+ * pump, whose `desired` is [suction, discharge].
+ */
+export function rotationFor(kind: TileKind, desired: Direction[]): Rotation {
+  const key = (ds: Direction[]) => (kind === 'pump' ? ds : [...ds].sort()).join(',');
+  for (const r of [0, 90, 180, 270] as Rotation[]) {
+    if (key(BASE_PORTS[kind].map((d) => rotateDirection(d, r))) === key(desired)) return r;
+  }
+  throw new Error(`No rotation of ${kind} has ports ${desired.join(',')}`);
+}
+
 /** A tile's ports in its current (rotated) orientation. */
 export function tilePorts(tile: Tile): Direction[] {
   return BASE_PORTS[tile.kind].map((d) => rotateDirection(d, tile.rotation));

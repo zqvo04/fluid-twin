@@ -10,19 +10,11 @@
  */
 
 import { makeTile, placeTile, DEFAULT_TILE_DEFAULTS } from './ops';
-import { tilePorts } from './ports';
-import { Direction, GridModel, Rotation, TileKind, emptyGrid } from './types';
-
-export function rotationFor(kind: TileKind, grid: GridModel, desired: Direction[]): Rotation {
-  const want = [...desired].sort().join(',');
-  for (const r of [0, 90, 180, 270] as Rotation[]) {
-    if (tilePorts(makeTile(kind, { col: 0, row: 0 }, r, grid)).slice().sort().join(',') === want) return r;
-  }
-  throw new Error(`no rotation of ${kind} yields ports ${desired.join(',')}`);
-}
+import { rotationFor } from './ports';
+import { Direction, GridModel, TileKind, emptyGrid } from './types';
 
 export function place(grid: GridModel, kind: TileKind, col: number, row: number, ports: Direction[]): GridModel {
-  return placeTile(grid, makeTile(kind, { col, row }, rotationFor(kind, grid, ports), grid, DEFAULT_TILE_DEFAULTS));
+  return placeTile(grid, makeTile(kind, { col, row }, rotationFor(kind, ports), grid, DEFAULT_TILE_DEFAULTS));
 }
 
 /** Tile ids by role, for assertions. */

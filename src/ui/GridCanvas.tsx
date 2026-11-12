@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from './store';
 import { buildMapList, drawMap } from '../render/mapLayer';
 import { buildPfdList, drawPfd } from '../render/pfdLayer';
-import { waterProperties } from '../domain/fluid';
+import { solvedState } from './solved';
 import { screenToCell, zoomAt, panBy } from '../render/viewport';
 import { makeTile, DEFAULT_TILE_DEFAULTS } from '../grid/ops';
 import { computePressureField } from '../render/pressureField';
@@ -86,10 +86,7 @@ export function GridCanvas() {
   }, [showPressure, result, grid, compiled, transientActive, transientHeads]);
 
   // Both modes read numbers through readouts.ts; a diverged solve shows none.
-  const solved = useMemo(
-    () => (result?.converged ? { heads: result.heads, links: result.links, fluid: waterProperties(grid.temperatureC) } : null),
-    [result, grid.temperatureC],
-  );
+  const solved = useMemo(() => solvedState(result, grid), [result, grid]);
   const pfdList = useMemo(() => (viewMode === 'pfd' ? buildPfdList(grid, compiled, solved) : null), [viewMode, grid, compiled, solved]);
   const mapList = useMemo(() => (viewMode === 'map' ? buildMapList(grid, compiled, solved) : null), [viewMode, grid, compiled, solved]);
 

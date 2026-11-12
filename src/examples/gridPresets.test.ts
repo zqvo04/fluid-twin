@@ -71,3 +71,31 @@ describe('grid presets', () => {
     expect(stoppedFlow).toBeLessThan(runningFlow / 1000);
   });
 });
+
+describe('V2 reference: open cooling loop (P5-1)', () => {
+  const preset = GRID_PRESETS.find((p) => p.name === '개방형 냉각수 루프')!;
+  const grid = preset.build();
+  const compiled = compile(grid);
+  const result = solveSteadyState(compiled.network);
+  const byTag = (tag: string) => grid.tiles.find((t) => 'tag' in t && t.tag === tag)!;
+
+  it('has the PFD equipment and instruments by tag', () => {
+    for (const tag of ['TK-101', 'S-101', 'P-101A', 'P-101B', 'E-101', 'FCV-101', 'HV-102', 'CT-101']) expect(byTag(tag)).toBeDefined();
+    expect(grid.instruments.map((i) => i.tag)).toEqual(['FI-101', 'PI-101', 'LI-101']);
+    expect(byTag('P-101B')).toMatchObject({ running: false });
+    expect(byTag('HV-102')).toMatchObject({ opening: 0, service: 'manual' });
+    expect(byTag('FCV-101')).toMatchObject({ service: 'control' });
+    expect(compiled.issues).toEqual([]);
+  });
+
+  it('converges with P-101A inside 70–120 % of its BEP flow', () => {
+    expect(result.converged).toBe(true);
+    const pump = byTag('P-101A');
+    const q = result.links.get(compiled.tileLink.get(pump.id)!)!.flow;
+    const bep = pump.kind === 'pump' ? pump.spec.bepFlow : NaN;
+    expect(q / bep).toBeGreaterThan(0.7);
+    expect(q / bep).toBeLessThan(1.2);
+    // Standby B is a blocked line, not a bypass.
+    expect(Math.abs(result.links.get(compiled.tileLink.get(byTag('P-101B').id)!)!.flow)).toBeLessThan(1e-4);
+  });
+});

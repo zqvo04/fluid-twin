@@ -5,8 +5,12 @@ import { VALVE_TYPES } from '../domain/catalog/valves';
 import { hasCheckValve } from '../domain/network';
 import { PumpHealth, PumpState } from '../analysis/pumpHealth';
 import { pumpStressColor } from '../render/theme';
-import { computePressureField, tilePressure } from '../render/pressureField';
-import { KIND_LABEL } from './kindLabels';
+import { elementReadout } from '../readouts';
+import { GLOSSARY, easyName } from '../learn/glossary';
+import { nextTag, tagCode } from '../grid/tags';
+import { m3hToM3s, m3sToM3h } from '../domain/units';
+import { solvedState } from './solved';
+import { WhyChart } from './WhyChart';
 
 /** What each pump condition means, in one line. */
 const PUMP_STATE_LABEL: Record<PumpState, string> = {
@@ -106,17 +110,16 @@ export function Inspector() {
   const updateSelectedTile = useAppStore((s) => s.updateSelectedTile);
   const deleteSelected = useAppStore((s) => s.deleteSelected);
   const selectTile = useAppStore((s) => s.selectTile);
+  const viewMode = useAppStore((s) => s.viewMode);
 
   const tile = grid.tiles.find((t) => t.id === selectedTileId);
 
-  const readout = useMemo(() => {
-    if (!tile || !result) return null;
-    const field = computePressureField(grid, compiled, result.heads, result.links);
-    const p = tilePressure(tile.id, grid, compiled, field);
-    const linkId = compiled.tileLink.get(tile.id);
-    const link = linkId ? result.links.get(linkId) : undefined;
-    return { pressureKPa: p ? p.pa / 1000 : null, flow: link?.flow ?? null, velocity: link?.velocity ?? null };
-  }, [tile, result, grid, compiled]);
+  // Same numbers as both canvases: readouts.ts is the only source (§1.2).
+  const solved = useMemo(() => solvedState(result, grid), [result, grid]);
+  const readout = useMemo(
+    () => (tile && solved ? elementReadout(grid, compiled, solved, tile.id) : null),
+    [tile, solved, grid, compiled],
+  );
 
   const pumpHealth = useMemo(() => {
     if (!tile || tile.kind !== 'pump' || !result) return null;
@@ -125,38 +128,59 @@ export function Inspector() {
   }, [tile, result, compiled]);
 
   if (!tile) return null;
+  const tag = 'tag' in tile ? tile.tag : undefined;
+  const name = easyName(tile.kind, tag);
+  const g = GLOSSARY[tile.kind];
+  const num = (v: number | undefined, unit: string, d: number) =>
+    v === undefined || !Number.isFinite(v) ? null : `${v.toFixed(d)} ${unit}`;
+  const rows: Array<[string, string | null]> = readout
+    ? [
+        ['압력', num(readout.pressureBarG, 'bar g', 3)],
+        ['입구 압력', num(readout.inletPressureBarG, 'bar g', 3)],
+        ['유량', num(readout.flowM3h, 'm³/h', 1)],
+        ['유속', num(readout.velocityMs, 'm/s', 2)],
+        ['차압', tile.kind === 'pump' ? null : num(readout.dpBar, 'bar', 3)],
+        ['양정', num(readout.headM, 'm', 1)],
+        ['수위', num(readout.levelM, 'm', 2)],
+      ]
+    : [];
 
   return (
     <div className="panel inspector">
       <div className="inspector-head">
-        <h1>{KIND_LABEL[tile.kind]}</h1>
+        {/* Dual label: tag first on the PFD, easy name first on the map (§1.3). */}
+        <h1>{viewMode === 'pfd' && tag ? tag : name}</h1>
         <button onClick={() => selectTile(null)} aria-label="Close">
           ✕
         </button>
       </div>
       <p className="subtitle">
-        ({tile.cell.col}, {tile.cell.row}) · {tile.id}
+        {tag ? (viewMode === 'pfd' ? name : tag) : `(${tile.cell.col}, ${tile.cell.row})`} · {tile.id}
       </p>
 
-      {readout && (
+      {viewMode === 'pfd' && (
+        <div className="readout glossary">
+          <p>
+            <b>기호</b> {g.symbol}
+          </p>
+          {g.tag && (
+            <p>
+              <b>태그</b> {g.tag}
+            </p>
+          )}
+          <p>{g.what}</p>
+        </div>
+      )}
+
+      {rows.some(([, v]) => v) && (
         <div className="readout">
-          {readout.pressureKPa !== null && (
-            <div className="kv">
-              <span>압력</span>
-              <span>{readout.pressureKPa.toFixed(1)} kPa</span>
-            </div>
-          )}
-          {readout.flow !== null && (
-            <div className="kv">
-              <span>유량</span>
-              <span>{(readout.flow * 3600).toFixed(2)} m³/h</span>
-            </div>
-          )}
-          {readout.velocity !== null && Number.isFinite(readout.velocity) && (
-            <div className="kv">
-              <span>유속</span>
-              <span>{readout.velocity.toFixed(2)} m/s</span>
-            </div>
+          {rows.map(([k, v]) =>
+            v ? (
+              <div className="kv" key={k}>
+                <span>{k}</span>
+                <span>{v}</span>
+              </div>
+            ) : null,
           )}
         </div>
       )}
@@ -195,6 +219,21 @@ export function Inspector() {
               ))}
             </select>
           </label>
+          <label className="ef">
+            <span>역할</span>
+            <select
+              value={tile.service}
+              onChange={(e) => {
+                // A role change is a different tag code (FCV ↔ HV): re-tag.
+                const service = e.target.value as 'control' | 'manual';
+                const others = { ...grid, tiles: grid.tiles.filter((t) => t.id !== tile.id) };
+                updateSelectedTile({ service, tag: nextTag(others, tagCode({ ...tile, service })) });
+              }}
+            >
+              <option value="control">제어밸브 (FCV)</option>
+              <option value="manual">수동밸브 (HV)</option>
+            </select>
+          </label>
           <label className="field">
             <span>
               개도 <b>{Math.round(tile.opening * 100)}%</b>
@@ -227,6 +266,10 @@ export function Inspector() {
             />
           </label>
           <label className="ef">
+            <span>운전</span>
+            <input type="checkbox" checked={tile.running} onChange={(e) => updateSelectedTile({ running: e.target.checked })} />
+          </label>
+          <label className="ef">
             <span>체크밸브</span>
             <input
               type="checkbox"
@@ -237,6 +280,83 @@ export function Inspector() {
           {pumpHealth && <PumpReadout health={pumpHealth} />}
         </>
       )}
+
+      {tile.kind === 'basin' && (
+        <>
+          <label className="ef">
+            <span>수면적 [m²]</span>
+            <input type="number" min={0.1} step={1} value={tile.area} onChange={(e) => updateSelectedTile({ area: Math.max(0.1, Number(e.target.value)) })} />
+          </label>
+          <label className="ef">
+            <span>수위 [m]</span>
+            <input type="number" min={0} step={0.1} value={tile.level} onChange={(e) => updateSelectedTile({ level: Math.max(0, Number(e.target.value)) })} />
+          </label>
+        </>
+      )}
+
+      {tile.kind === 'strainer' && (
+        <>
+          <label className="ef">
+            <span>청정 K</span>
+            <input type="number" min={0} step={0.1} value={tile.kClean} onChange={(e) => updateSelectedTile({ kClean: Math.max(0, Number(e.target.value)) })} />
+          </label>
+          <label className="field">
+            <span>
+              막힘 <b>{Math.round(tile.clogging * 100)}%</b>
+            </span>
+            <input type="range" min={0} max={0.95} step={0.01} value={tile.clogging} onChange={(e) => updateSelectedTile({ clogging: Number(e.target.value) })} />
+          </label>
+        </>
+      )}
+
+      {tile.kind === 'hx' && (
+        <>
+          <label className="ef">
+            <span>설계 유량 [m³/h]</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={Math.round(m3sToM3h(tile.designFlow))}
+              onChange={(e) => updateSelectedTile({ designFlow: m3hToM3s(Math.max(1, Number(e.target.value))) })}
+            />
+          </label>
+          <label className="ef">
+            <span>설계 차압 [kPa]</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={Math.round(tile.designDp / 1000)}
+              onChange={(e) => updateSelectedTile({ designDp: Math.max(1, Number(e.target.value)) * 1000 })}
+            />
+          </label>
+        </>
+      )}
+
+      {tile.kind === 'spray' && (
+        <>
+          <label className="ef">
+            <span>노즐 K</span>
+            <input type="number" min={0} step={0.1} value={tile.nozzleK} onChange={(e) => updateSelectedTile({ nozzleK: Math.max(0, Number(e.target.value)) })} />
+          </label>
+          <label className="ef">
+            <span>복귀 수조</span>
+            <select value={tile.returnBasinId} onChange={(e) => updateSelectedTile({ returnBasinId: e.target.value })}>
+              <option value="">—</option>
+              {grid.tiles.map((t) =>
+                t.kind === 'basin' ? (
+                  <option key={t.id} value={t.id}>
+                    {t.tag}
+                  </option>
+                ) : null,
+              )}
+            </select>
+          </label>
+        </>
+      )}
+
+      {solved && (tile.kind === 'pump' || tile.kind === 'valve') && <WhyChart grid={grid} result={solved} tileId={tile.id} />}
 
       {tile.kind === 'source' && (
         <label className="ef">

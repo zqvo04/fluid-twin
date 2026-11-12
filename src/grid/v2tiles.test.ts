@@ -96,7 +96,16 @@ describe('v1 project files migrate to v3 on load', () => {
     return JSON.stringify(f);
   };
 
-  for (const preset of GRID_PRESETS) {
+  // Only presets a v1 file could hold: V1 tile kinds, every pump running, no instruments.
+  const V1_KINDS = new Set(['straight', 'elbow', 'tee', 'cross', 'valve', 'pump', 'source', 'sink']);
+  const v1Presets = GRID_PRESETS.filter((p) => {
+    const g = p.build();
+    return !g.instruments.length && g.tiles.every((t) => V1_KINDS.has(t.kind) && (t.kind !== 'pump' || t.running));
+  });
+
+  it('covers the V1-era presets', () => expect(v1Presets.length).toBeGreaterThanOrEqual(5));
+
+  for (const preset of v1Presets) {
     it(`"${preset.name}" loads from v1 and compiles to the same network`, () => {
       const original = preset.build();
       const loaded = deserializeGrid(toV1(serializeGrid(original)));

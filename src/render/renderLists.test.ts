@@ -3,6 +3,7 @@ import { buildPfdList } from './pfdLayer';
 import { buildMapList } from './mapLayer';
 import { compile } from '../grid/compile';
 import { coolingLoop } from '../grid/testLoop';
+import { GRID_PRESETS } from '../examples/gridPresets';
 import { GridModel } from '../grid/types';
 import { solveSteadyState } from '../physics/steadySolver';
 import { elementReadout, streamTable } from '../readouts';
@@ -34,9 +35,9 @@ describe('PFD render list', () => {
     expect(pfdItem(ids.riser).symbol).toBeUndefined(); // a pipe is a line
   });
 
-  it('labels equipment by tag; the pump symbol points at its discharge', () => {
-    expect(pfdItem(ids.pump).labels).toEqual(['P-101A']);
-    expect(pfdItem(ids.valve).labels).toEqual(['FCV-101']);
+  it('labels equipment tag first, easy name second; the pump symbol points at its discharge', () => {
+    expect(pfdItem(ids.pump).labels).toEqual(['P-101A', '펌프 A']);
+    expect(pfdItem(ids.valve).labels).toEqual(['FCV-101', '제어밸브']);
     expect(pfdItem(ids.riser).labels).toEqual([]);
     expect(pfdItem(ids.pump).angle).toBeCloseTo(0, 12); // discharge E
     expect(pfdItem(ids.valve).angle).toBeCloseTo(0, 12); // horizontal body, actuator up
@@ -50,6 +51,19 @@ describe('PFD render list', () => {
     expect(riser.angle).toBeCloseTo(-Math.PI / 2, 12);
     // The horizontal runs flow east.
     for (const r of pfd.runs.filter((x) => x !== riser)) expect(r.angle).toBeCloseTo(0, 12);
+  });
+
+  it('no arrow on a dead branch: leakage below table precision is not a direction', () => {
+    const g = GRID_PRESETS.find((p) => p.name === '개방형 냉각수 루프')!.build();
+    const c = compile(g);
+    const list = buildPfdList(g, c, solveSteadyState(c.network));
+    const runOf = (id: string) => list.runs.find((r) => r.linkId === c.tileLink.get(id))!;
+    const tile = (tag: string) => g.tiles.find((t) => 'tag' in t && t.tag === tag)!;
+    const nextTo = (tag: string, dc: number, dr: number) => g.tiles.find((t) => t.cell.col === tile(tag).cell.col + dc && t.cell.row === tile(tag).cell.row + dr)!.id;
+    expect(runOf(nextTo('P-101B', 1, 0)).angle).toBeNull(); // stopped standby branch
+    expect(runOf(nextTo('HV-102', 1, 1)).angle).toBeNull(); // shut bypass
+    expect(runOf(nextTo('P-101A', 1, 0)).angle).toBeCloseTo(0, 12); // duty branch flows east
+    expect(runOf(nextTo('HV-102', 1, 1)).vertical).toBe(true);
   });
 
   it('stream table = streamTable() rows plus their line numbers', () => {

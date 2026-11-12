@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from './store';
 import { resolveIssueTile } from '../grid/compile';
+import { explain } from '../learn/explain';
 
 export function WarningsPanel() {
   const [open, setOpen] = useState(false);
@@ -42,7 +43,19 @@ export function WarningsPanel() {
               tabIndex={issue.ref ? 0 : undefined}
             >
               <span className="dot" />
-              {issue.message}
+              {/* 무엇이 / 왜 위험 / 무엇을 바꾸면 — the raw finding stays in the tooltip. */}
+              <span className="diag-explain" title={issue.message}>
+                {(() => {
+                  const e = explain(issue.message);
+                  return (
+                    <>
+                      <b>{e.what}</b>
+                      <br />왜 위험: {e.why}
+                      <br />바꾸면: {e.fix}
+                    </>
+                  );
+                })()}
+              </span>
             </div>
           ))}
         </div>
