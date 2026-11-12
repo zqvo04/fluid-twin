@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from './store';
 import { WorkerRequest, WorkerResponse } from '../worker/protocol';
+import { ScenarioEvent } from '../grid/types';
+import { networkEvents } from '../grid/scenario';
 
 export function useTransientRunner() {
   const workerRef = useRef<Worker | null>(null);
@@ -30,7 +32,8 @@ export function useTransientRunner() {
     return () => worker.terminate();
   }, [pushTransientFrame]);
 
-  const start = useCallback((opts: { valveId?: string; pumpTripId?: string }) => {
+  /** Surge-check `event` (tile id) on the current grid, streamed live. */
+  const start = useCallback((event: ScenarioEvent) => {
     const { compiled, transient } = useAppStore.getState();
     nodeIdsRef.current = compiled.network.nodes.map((n) => n.id);
     const id = ++requestId.current;
@@ -39,10 +42,8 @@ export function useTransientRunner() {
       type: 'START_NET_TRANSIENT',
       requestId: id,
       network: compiled.network,
-      valveId: opts.valveId ?? null,
-      pumpTripId: opts.pumpTripId ?? null,
-      closureTime: transient.closureTimeS,
-      stepsPerFrame: 4,
+      event: networkEvents(compiled, [event])[0],
+      stepsPerFrame: 12, // ~4000 steps per run (surgeSim) → about 8 s of playback
       seconds: transient.seconds,
     };
     workerRef.current?.postMessage(req);

@@ -8,6 +8,7 @@
  */
 
 import { CompileResult } from './grid/compile';
+import { reservoirThroughput } from './analysis/networkVulnerability';
 import { GridModel, Instrument, InstrumentType, Tile, TileKind, cellElevation } from './grid/types';
 import { G, m3sToM3h, paToBar } from './domain/units';
 
@@ -194,4 +195,13 @@ export function streamTable(compiled: CompileResult, result: SolvedState): Strea
     });
   }
   return rows;
+}
+
+/**
+ * System readout: net flow the network actually delivers between its
+ * reservoirs (source → sink, basin → spray return …) [m³/h]. The status bar's
+ * "송출"; flow merely circulating in a loop does not count.
+ */
+export function throughputM3h(compiled: CompileResult, result: SolvedState): number {
+  return m3sToM3h(reservoirThroughput(compiled.network, result));
 }

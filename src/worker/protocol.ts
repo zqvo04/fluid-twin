@@ -47,16 +47,15 @@ export interface StopTransientRequest {
   requestId: number;
 }
 
-/** Run a time-domain (water hammer) analysis on an arbitrary built network. */
+/**
+ * Surge check, streamed: run the MOC on an arbitrary built network with one
+ * event at t = 0 (valve stroke, pump trip or pump start; `id` is a link id).
+ */
 export interface StartNetTransientRequest {
   type: 'START_NET_TRANSIENT';
   requestId: number;
   network: PipelineNetwork;
-  /** Valve link id to close (the surge trigger), or null. */
-  valveId: string | null;
-  /** Pump link id to trip (power failure), or null. */
-  pumpTripId: string | null;
-  closureTime: number;
+  event: ScenarioEvent;
   stepsPerFrame: number;
   seconds: number;
 }
@@ -170,7 +169,9 @@ export interface NetTransientFrame {
   minHead: number;
   maxHead: number;
   peakSurge: number;
-  /** Speed ratio of the tripped pump (1 = rated, 0 = stopped; 1 if none). */
+  /** Node where the largest rise so far (`peakSurge`) occurred. */
+  peakNodeId: string;
+  /** Speed ratio of the event's pump (tripped or started); 1 if the event is a valve. */
   pumpSpeed: number;
   done: boolean;
 }

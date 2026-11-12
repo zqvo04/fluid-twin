@@ -845,3 +845,4 @@ button.danger:hover {
 .panel.guide p { font-size: var(--text-sm); line-height: 1.5; margin: 6px 0; }
 .panel.guide .wide + .wide { margin-top: 6px; }
 .inspector fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+.legend-note { margin: 6px 0 0; font-size: var(--text-xs); line-height: 1.4; color: var(--color-ink-2); max-width: 320px; }

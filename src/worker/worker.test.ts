@@ -76,3 +76,41 @@ describe('worker SURGE_CHECK', () => {
     expect(res.result.trough.drop).toBeGreaterThan(0); // a trip drops the discharge head
   });
 });
+
+describe('worker START_NET_TRANSIENT (surge check, streamed)', () => {
+  it('streams a fast valve closure: peak where the batch surgeCheck finds it', async () => {
+    const { GRID_PRESETS } = await import('../examples/gridPresets');
+    const { surgeCheck } = await import('../physics/networkTransient');
+    const g = GRID_PRESETS.find((p) => p.name === '개방형 냉각수 루프')!.build();
+    const c = compile(g);
+    const fcv = g.tiles.find((t) => 'tag' in t && t.tag === 'FCV-101')!.id;
+    const [event] = networkEvents(c, [{ kind: 'valveStroke', t: 0, id: fcv, target: 0, timeS: 0.2 }]);
+    posted.length = 0;
+    send({ type: 'START_NET_TRANSIENT', requestId: 11, network: c.network, event, stepsPerFrame: 400, seconds: 2 });
+    await vi.waitFor(() => expect(posted.some((m) => m.type === 'NET_TRANSIENT_FRAME' && m.done)).toBe(true), { timeout: 5000 });
+    const last = posted.filter((m) => m.type === 'NET_TRANSIENT_FRAME').pop()!;
+    if (last.type !== 'NET_TRANSIENT_FRAME') throw new Error('unreachable');
+    expect(c.network.nodes.map((n) => n.id)).toContain(last.peakNodeId);
+    // 0.2 s is slow for this short loop (10·2L/a ≈ 0.12 s): a few metres, not Joukowsky.
+    expect(last.peakSurge).toBeGreaterThan(1);
+    expect(last.pumpSpeed).toBe(1); // a valve event reports no pump
+    const batch = surgeCheck(c.network, event, 2);
+    // Same sim (surgeSim), same steps: the live panel shows the batch check's numbers.
+    expect(last.peakNodeId).toBe(batch.peak.nodeId);
+    expect(last.peakSurge).toBeCloseTo(batch.peak.rise, 6);
+  });
+
+  it('a pump-start event reports the started pump speed', async () => {
+    const { GRID_PRESETS } = await import('../examples/gridPresets');
+    const g = GRID_PRESETS.find((p) => p.name === '개방형 냉각수 루프')!.build();
+    const c = compile(g);
+    const b = g.tiles.find((t) => 'tag' in t && t.tag === 'P-101B')!.id;
+    const [event] = networkEvents(c, [{ kind: 'pumpStart', t: 0, id: b, rampS: 1 }]);
+    posted.length = 0;
+    send({ type: 'START_NET_TRANSIENT', requestId: 12, network: c.network, event, stepsPerFrame: 400, seconds: 2 });
+    await vi.waitFor(() => expect(posted.some((m) => m.type === 'NET_TRANSIENT_FRAME' && m.done)).toBe(true), { timeout: 5000 });
+    const last = posted.filter((m) => m.type === 'NET_TRANSIENT_FRAME').pop()!;
+    if (last.type !== 'NET_TRANSIENT_FRAME') throw new Error('unreachable');
+    expect(last.pumpSpeed).toBe(1); // ramp of 1 s done within 2 s
+  });
+});

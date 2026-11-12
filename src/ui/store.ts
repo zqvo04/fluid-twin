@@ -44,9 +44,6 @@ export interface TransientHistoryPoint {
 }
 
 export interface TransientState {
-  targetKind: 'valve' | 'pump' | null;
-  targetId: string | null;
-  closureTimeS: number;
   seconds: number;
   running: boolean;
   time: number;
@@ -54,14 +51,13 @@ export interface TransientState {
   minHead: number;
   maxHead: number;
   peakSurge: number;
+  /** Node of the largest rise (`peakSurge`). */
+  peakNodeId: string | null;
   history: TransientHistoryPoint[];
   done: boolean;
 }
 
 const INITIAL_TRANSIENT: TransientState = {
-  targetKind: null,
-  targetId: null,
-  closureTimeS: 0.5,
   seconds: 4,
   running: false,
   time: 0,
@@ -69,6 +65,7 @@ const INITIAL_TRANSIENT: TransientState = {
   minHead: 0,
   maxHead: 0,
   peakSurge: 0,
+  peakNodeId: null,
   history: [],
   done: false,
 };
@@ -117,8 +114,6 @@ interface AppState {
   showFlow: boolean;
 
   transient: TransientState;
-  setTransientTarget: (kind: 'valve' | 'pump' | null, id: string | null) => void;
-  setTransientClosureTime: (s: number) => void;
   setTransientSeconds: (s: number) => void;
   beginTransientRun: () => void;
   pushTransientFrame: (frame: NetTransientFrame, nodeIds: string[]) => void;
@@ -203,11 +198,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   showFlow: true,
 
   transient: INITIAL_TRANSIENT,
-  setTransientTarget: (targetKind, targetId) => set({ transient: { ...get().transient, targetKind, targetId } }),
-  setTransientClosureTime: (closureTimeS) => set({ transient: { ...get().transient, closureTimeS } }),
   setTransientSeconds: (seconds) => set({ transient: { ...get().transient, seconds } }),
   beginTransientRun: () =>
-    set({ transient: { ...get().transient, running: true, time: 0, history: [], done: false, heads: null } }),
+    set({ transient: { ...get().transient, running: true, time: 0, history: [], done: false, heads: null, peakSurge: 0, peakNodeId: null } }),
   pushTransientFrame: (frame, nodeIds) => {
     const heads = new Map<string, number>();
     for (let i = 0; i < nodeIds.length; i++) heads.set(nodeIds[i], frame.heads[i]);
@@ -221,6 +214,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         minHead: frame.minHead,
         maxHead: frame.maxHead,
         peakSurge: frame.peakSurge,
+        peakNodeId: frame.peakNodeId || null,
         history,
         running: !frame.done,
         done: frame.done,
