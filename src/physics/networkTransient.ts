@@ -576,7 +576,30 @@ export function eventDuration(e: ScenarioEvent): number {
  * covered by the quasi-steady timeline.
  */
 export function surgeCheckRecommended(net: PipelineNetwork, e: ScenarioEvent): boolean {
-  return eventDuration(e) < 10 * 2 * Math.max(0, ...travelTimes(net));
+  return eventDuration(e) < surgeThreshold(net);
+}
+
+/** 10·(2L/a) of the longest pipe [s]: events faster than this need a surge check. */
+export function surgeThreshold(net: PipelineNetwork): number {
+  return 10 * 2 * Math.max(0, ...travelTimes(net));
+}
+
+/**
+ * Apply one event to a running sim: a pump trip or start acts now; a valve
+ * stroke returns a hook that moves the opening before each step (linear over
+ * its stroke time from the opening `net` holds). `id` is a link id.
+ * Shared by surgeCheck and the worker's live surge animation.
+ */
+export function eventDriver(sim: NetworkTransientSim, net: PipelineNetwork, e: ScenarioEvent): () => void {
+  if (e.kind === 'pumpStart') sim.startPump(e.id, e.rampS);
+  if (e.kind === 'pumpStop') sim.tripPump(e.id);
+  if (e.kind !== 'valveStroke') return () => {};
+  const valve = net.links.find((l) => l.id === e.id);
+  const o0 = valve?.kind === 'valve' ? valve.opening : 1;
+  return () => {
+    const frac = e.timeS > 0 ? Math.min(1, (sim.time + sim.dt) / e.timeS) : 1;
+    sim.setValveOpening(e.id, o0 + (e.target - o0) * frac);
+  };
 }
 
 export interface SurgeCheckResult {
@@ -596,23 +619,26 @@ export interface SurgeCheckResult {
  * applied at t = 0 (its `t` is ignored; `id` is a link id) and report the
  * head envelope. Default duration: the event plus 10 wave round trips.
  */
+/**
+ * The MOC sim a surge check runs on. One constructor for the batch check and
+ * the live animation: with lumped links far shorter than a reach, the peak
+ * depends on Δt, so both must step identically to report the same surge.
+ */
+export function surgeSim(net: PipelineNetwork, durationS: number): NetworkTransientSim {
+  // dt floor keeps a short lumped link from forcing millions of steps.
+  return new NetworkTransientSim(net, 8, durationS / 4000);
+}
+
 export function surgeCheck(net: PipelineNetwork, e: ScenarioEvent, durationS?: number): SurgeCheckResult {
   const duration = durationS ?? eventDuration(e) + 20 * Math.max(0, ...travelTimes(net));
-  // dt floor keeps a short lumped link from forcing millions of steps.
-  const sim = new NetworkTransientSim(net, 8, duration / 4000);
+  const sim = surgeSim(net, duration);
   const h0 = Float64Array.from(sim.nodeHead);
   const max = Float64Array.from(h0);
   const min = Float64Array.from(h0);
-  const valve = e.kind === 'valveStroke' ? net.links.find((l) => l.id === e.id) : undefined;
-  const o0 = valve?.kind === 'valve' ? valve.opening : 1;
-  if (e.kind === 'pumpStart') sim.startPump(e.id, e.rampS);
-  if (e.kind === 'pumpStop') sim.tripPump(e.id);
+  const drive = eventDriver(sim, net, e);
 
   while (sim.time < duration - 1e-12) {
-    if (e.kind === 'valveStroke') {
-      const frac = e.timeS > 0 ? Math.min(1, (sim.time + sim.dt) / e.timeS) : 1;
-      sim.setValveOpening(e.id, o0 + (e.target - o0) * frac);
-    }
+    drive();
     sim.step();
     for (let i = 0; i < sim.nodeCount; i++) {
       max[i] = Math.max(max[i], sim.nodeHead[i]);

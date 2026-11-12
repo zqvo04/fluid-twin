@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { activeFrame, useAppStore } from './store';
 import { useScenarioRunner } from './useScenarioRunner';
-import { GridModel, ScenarioEvent, Tile } from '../grid/types';
-
-type Kind = ScenarioEvent['kind'];
-const KIND_LABEL: Record<Kind, string> = { pumpStart: '펌프 기동', pumpStop: '펌프 정지', valveStroke: '밸브 조작' };
+import { GridModel, ScenarioEvent } from '../grid/types';
+import { EVENT_LABEL, EventForm } from './EventForm';
+import { networkEvents } from '../grid/scenario';
+import { surgeCheckRecommended } from '../physics/networkTransient';
 
 const tagOf = (grid: GridModel, id: string) => {
   const t = grid.tiles.find((x) => x.id === id);
@@ -12,7 +12,7 @@ const tagOf = (grid: GridModel, id: string) => {
 };
 
 function describe(grid: GridModel, e: ScenarioEvent): string {
-  const head = `${e.t} s · ${tagOf(grid, e.id)} ${KIND_LABEL[e.kind]}`;
+  const head = `${e.t} s · ${tagOf(grid, e.id)} ${EVENT_LABEL[e.kind]}`;
   if (e.kind === 'pumpStart') return `${head} (${e.rampS} s에 걸쳐)`;
   if (e.kind === 'valveStroke') return `${head} → ${Math.round(e.target * 100)} % (${e.timeS} s)`;
   return `${head} (관성 감속)`;
@@ -43,6 +43,7 @@ function examples(grid: GridModel): Array<{ name: string; events: ScenarioEvent[
  */
 export function ScenarioPanel() {
   const grid = useAppStore((s) => s.grid);
+  const compiled = useAppStore((s) => s.compiled);
   const playback = useAppStore((s) => s.playback);
   const frame = useAppStore(activeFrame);
   const seekFrame = useAppStore((s) => s.seekFrame);
@@ -51,34 +52,16 @@ export function ScenarioPanel() {
 
   const [events, setEvents] = useState<ScenarioEvent[]>([]);
   const [durationS, setDurationS] = useState(30);
-  const [draft, setDraft] = useState<{ kind: Kind; id: string; t: number; a: number; b: number }>({
-    kind: 'pumpStart',
-    id: '',
-    t: 2,
-    a: 5,
-    b: 10,
-  });
+  // Events faster than 10·(2L/a): the quasi-steady timeline misses their pressure wave (§2.2).
+  const surgeFlags = useMemo(
+    () => networkEvents(compiled, events).map((e) => surgeCheckRecommended(compiled.network, e)),
+    [compiled, events],
+  );
 
-  const pumps = grid.tiles.filter((t) => t.kind === 'pump');
-  const valves = grid.tiles.filter((t) => t.kind === 'valve');
-  if (!pumps.length && !valves.length) return null;
+  if (!grid.tiles.some((t) => t.kind === 'pump' || t.kind === 'valve')) return null;
 
-  const targets: Tile[] = draft.kind === 'valveStroke' ? valves : pumps;
-  const targetId = targets.some((t) => t.id === draft.id) ? draft.id : targets[0]?.id ?? '';
   const running = playback?.running === true;
   const stale = playback !== null && playback.grid !== grid; // grid edited since the run
-
-  const add = () => {
-    if (!targetId) return;
-    const t = Math.max(0, draft.t);
-    const e: ScenarioEvent =
-      draft.kind === 'pumpStart'
-        ? { kind: 'pumpStart', t, id: targetId, rampS: Math.max(0, draft.a) }
-        : draft.kind === 'pumpStop'
-          ? { kind: 'pumpStop', t, id: targetId }
-          : { kind: 'valveStroke', t, id: targetId, target: Math.min(1, Math.max(0, draft.a / 100)), timeS: Math.max(0, draft.b) };
-    setEvents([...events, e].sort((x, y) => x.t - y.t));
-  };
 
   return (
     <div className="panel scenario">
@@ -96,7 +79,10 @@ export function ScenarioPanel() {
         {events.length === 0 && <p className="hint">아래에서 이벤트를 추가하세요.</p>}
         {events.map((e, i) => (
           <div className="kv" key={i}>
-            <span>{describe(grid, e)}</span>
+            <span>
+              {describe(grid, e)}
+              {surgeFlags[i] && <b className="badge warn" title="빠른 조작: 압력파는 서지 점검으로 확인하세요"> 서지 점검 권장</b>}
+            </span>
             <button aria-label="이벤트 삭제" disabled={running} onClick={() => setEvents(events.filter((_, j) => j !== i))}>
               ✕
             </button>
@@ -104,53 +90,13 @@ export function ScenarioPanel() {
         ))}
       </div>
 
-      <div className="section">
-        <label className="ef">
-          <span>동작</span>
-          <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as Kind, a: e.target.value === 'valveStroke' ? 30 : 5 })}>
-            {(Object.keys(KIND_LABEL) as Kind[]).map((k) => (
-              <option key={k} value={k} disabled={k === 'valveStroke' ? !valves.length : !pumps.length}>
-                {KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="ef">
-          <span>대상</span>
-          <select value={targetId} onChange={(e) => setDraft({ ...draft, id: e.target.value })}>
-            {targets.map((t) => (
-              <option key={t.id} value={t.id}>
-                {'tag' in t ? t.tag : t.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="ef">
-          <span>시각 [s]</span>
-          <input type="number" min={0} step={0.5} value={draft.t} onChange={(e) => setDraft({ ...draft, t: Number(e.target.value) })} />
-        </label>
-        {draft.kind === 'pumpStart' && (
-          <label className="ef">
-            <span>가속 시간 [s]</span>
-            <input type="number" min={0} step={0.5} value={draft.a} onChange={(e) => setDraft({ ...draft, a: Number(e.target.value) })} />
-          </label>
-        )}
-        {draft.kind === 'valveStroke' && (
-          <>
-            <label className="ef">
-              <span>목표 개도 [%]</span>
-              <input type="number" min={0} max={100} step={5} value={draft.a} onChange={(e) => setDraft({ ...draft, a: Number(e.target.value) })} />
-            </label>
-            <label className="ef">
-              <span>스트로크 시간 [s]</span>
-              <input type="number" min={0} step={0.5} value={draft.b} onChange={(e) => setDraft({ ...draft, b: Number(e.target.value) })} />
-            </label>
-          </>
-        )}
-        <button className="wide" disabled={running || !targetId} onClick={add}>
-          이벤트 추가
-        </button>
-      </div>
+      <EventForm
+        grid={grid}
+        withTime
+        disabled={running}
+        submitLabel="이벤트 추가"
+        onSubmit={(e) => setEvents([...events, e].sort((x, y) => x.t - y.t))}
+      />
 
       <div className="section">
         <label className="ef">

@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { activeFrame, useAppStore } from './store';
 import { tileAt } from '../grid/ops';
 import { KIND_LABEL } from './kindLabels';
-import { reservoirThroughput } from '../analysis/networkVulnerability';
+import { throughputM3h as systemThroughput } from '../readouts';
+import { useDisplayState } from './solved';
 
 /** Below this, treat the network as delivering nothing (vs. floating-point
  * noise from a converged-but-idle solve). */
@@ -27,10 +28,12 @@ export function StatusBar() {
   const hasBlockingIssues = issues.some((i) => i.severity === 'error');
 
   const hasReservoir = compiled.network.nodes.some((n) => n.type === 'reservoir');
+  const { solved } = useDisplayState();
+  // Through readouts.ts like every other number (§1.2); the steady result or the played-back frame.
   const throughputM3h = useMemo(() => {
-    if (!result || !hasReservoir) return null;
-    return reservoirThroughput(compiled.network, result) * 3600;
-  }, [result, compiled, hasReservoir]);
+    if (!solved || !hasReservoir) return null;
+    return systemThroughput(compiled, solved);
+  }, [solved, compiled, hasReservoir]);
   const noDelivery = throughputM3h !== null && throughputM3h < NO_DELIVERY_THRESHOLD * 3600;
 
   let solverLabel = '대기';

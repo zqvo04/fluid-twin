@@ -4,7 +4,7 @@ import { Palette } from './ui/Palette';
 import { Inspector } from './ui/Inspector';
 import { Toolbar } from './ui/Toolbar';
 import { Legend } from './ui/Legend';
-import { TransientPanel } from './ui/TransientPanel';
+import { SurgePanel } from './ui/SurgePanel';
 import { GuidePanel } from './ui/GuidePanel';
 import { ScenarioPanel } from './ui/ScenarioPanel';
 import { StatusBar } from './ui/StatusBar';
@@ -41,7 +41,7 @@ export default function App() {
         <Palette />
         <GuidePanel />
         <ScenarioPanel />
-        <TransientPanel />
+        <SurgePanel />
       </div>
       <Inspector />
       <Legend />

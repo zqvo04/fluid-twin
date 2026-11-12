@@ -7,7 +7,7 @@
 
 import { solveSteadyState } from '../physics/steadySolver';
 import { WaterHammerSim } from '../physics/transient';
-import { NetworkTransientSim, surgeCheck, surgeCheckRecommended } from '../physics/networkTransient';
+import { eventDriver, surgeCheck, surgeCheckRecommended, surgeSim } from '../physics/networkTransient';
 import { runScenario } from '../physics/scenario';
 import { generateReport, reportFindingsToUiFindings } from '../analysis/report';
 import { analyzePumpHealth } from '../analysis/pumpHealth';
@@ -85,26 +85,25 @@ function runTransient(req: StartTransientRequest) {
 
 function runNetTransient(req: StartNetTransientRequest) {
   stopTransient();
-  // Finer reaches for a smoother wave, but cap total steps via a dt floor.
-  const sim = new NetworkTransientSim(req.network, 8, req.seconds / 1400);
+  // Same sim as the batch surgeCheck, so the panel's live numbers are its numbers.
+  const sim = surgeSim(req.network, req.seconds);
   const initHeads = Float64Array.from(sim.nodeHead);
-  const valve = req.valveId ? req.network.links.find((l) => l.id === req.valveId) : null;
-  const opening0 = valve && valve.kind === 'valve' ? valve.opening : 1;
-  if (req.pumpTripId) sim.tripPump(req.pumpTripId);
-  const endTime = req.seconds;
+  const drive = eventDriver(sim, req.network, req.event);
+  const pumpId = req.event.kind === 'valveStroke' ? null : req.event.id;
   const frameMs = 25;
   let peakSurge = 0;
+  let peakNode = 0;
 
   const tick = () => {
     for (let k = 0; k < req.stepsPerFrame; k++) {
-      if (req.valveId) {
-        const factor = Math.max(0, 1 - sim.time / req.closureTime);
-        sim.setValveOpening(req.valveId, opening0 * factor);
-      }
+      drive();
       sim.step();
       for (let i = 0; i < sim.nodeCount; i++) {
         const s = sim.nodeHead[i] - initHeads[i];
-        if (s > peakSurge) peakSurge = s;
+        if (s > peakSurge) {
+          peakSurge = s;
+          peakNode = i;
+        }
       }
     }
 
@@ -116,7 +115,7 @@ function runNetTransient(req: StartNetTransientRequest) {
       if (heads[i] < minHead) minHead = heads[i];
       if (heads[i] > maxHead) maxHead = heads[i];
     }
-    const done = sim.time >= endTime;
+    const done = sim.time >= req.seconds;
     const frame: WorkerResponse = {
       type: 'NET_TRANSIENT_FRAME',
       requestId: req.requestId,
@@ -126,7 +125,8 @@ function runNetTransient(req: StartNetTransientRequest) {
       minHead,
       maxHead,
       peakSurge,
-      pumpSpeed: req.pumpTripId ? sim.pumpSpeed(req.pumpTripId) : 1,
+      peakNodeId: sim.nodeIds[peakNode] ?? '',
+      pumpSpeed: pumpId ? sim.pumpSpeed(pumpId) : 1,
       done,
     };
     ctx.postMessage(frame, [heads.buffer, flows.buffer]);

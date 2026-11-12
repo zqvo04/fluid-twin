@@ -141,3 +141,15 @@ describe('elementReadout — V1 junction and boundary tiles', () => {
     expect(cr.pressureBarG).toBeGreaterThan(0);
   });
 });
+
+describe('system readout', () => {
+  it('throughput = flow delivered basin → spray = FI-101 on the reference loop', async () => {
+    const { GRID_PRESETS } = await import('./examples/gridPresets');
+    const { throughputM3h } = await import('./readouts');
+    const g = GRID_PRESETS.find((p) => p.name === '개방형 냉각수 루프')!.build();
+    const c = compile(g);
+    const r = solveSteadyState(c.network);
+    expect(throughputM3h(c, r)).toBeCloseTo(elementReadout(g, c, r, 'FI-101')!.value!, 6);
+    expect(throughputM3h(c, r)).toBeGreaterThan(80);
+  });
+});
