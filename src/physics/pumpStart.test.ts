@@ -117,3 +117,26 @@ describe('surgeCheck', () => {
     expect(r.durationS).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('tripped rotor (P5-3 fix)', () => {
+  it('brakes to rest on churn torque after its check valve shuts', () => {
+    // Duty A tripped; parked standby B keeps the converging (backtracking)
+    // Newton active, so no spurious flow can mask a torque that vanishes at Q = 0.
+    const net = pumpLine(1);
+    net.links.push({ id: 'PB2', kind: 'pump', from: 'J1', to: 'J2', spec: PUMP_50M, speedRatio: 0 });
+    const sim = new NetworkTransientSim(net);
+    sim.tripPump('PB');
+    let shutAt = -1;
+    let at60 = 1;
+    while (sim.time < 120) {
+      sim.step();
+      if (shutAt < 0 && sim.pipeFlow('P2') <= 1e-6) shutAt = sim.time;
+      if (at60 === 1 && sim.time >= 60) at60 = sim.pumpSpeed('PB');
+    }
+    expect(shutAt).toBeGreaterThan(0); // the check valve did shut: flow stopped while spinning
+    // Churn torque ∝ n² gives a hyperbolic run-down (no bearing drag is modelled),
+    // still falling after the valve shut; ρgQH/η stalled here at n ≈ 0.39.
+    expect(sim.pumpSpeed('PB')).toBeLessThan(0.1);
+    expect(sim.pumpSpeed('PB')).toBeLessThan(at60);
+  });
+});

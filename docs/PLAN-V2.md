@@ -328,30 +328,40 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | P3-3 | M | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). `render/mapLayer.ts` = V1 `tileLayer` 그대로 + 말풍선. 신규 4종 아이콘(`sprites.ts`)·팔레트 추가. 말풍선은 선택/호버 요소만(전체 표시 시 1셀 간격에서 겹침). 쉬운 이름은 `KIND_LABEL` 임시 — P4-1 사전으로 교체(shortcut 주석) |
 | P3-4 | M | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). store `viewMode`, 상단 `PFD | 맵` 탭, `GridCanvas` 디스패치, PFD에서 입자 캔버스 숨김. 스크린샷 `docs/v2/mode-{pfd,map}.png` (`node scripts/mode-screenshots.cjs`). **미구현(후속)**: Inspector에서 신규 타일 고유 속성(면적·수위·막힘·설계점·노즐 K·복귀 수조)과 밸브 `service`·펌프 `running` 편집 |
 | P3-5 | H | ✅ | [PR #29](https://github.com/zqvo04/fluid-twin/pull/29). `render/modeAgreement.test.ts`: 시드 고정 무작위 모델 200개(값 비교 500+), 불일치 4종(요소 누락·값 변조·셀 이동·중복) 주입 시 실패 확인 |
-| P4-1 | L | 🔵 | P4 덩어리 PR. `learn/glossary.ts` 16종(타일 12 + 계기 4): 쉬운 이름·한 줄 설명·심볼 해설·태그 읽는 법. 쉬운 이름은 태그로 세분(펌프 A/B, 제어/수동밸브). 맵의 `KIND_LABEL` 임시 이름 교체 |
-| P4-2 | M | 🔵 | P4 덩어리 PR. PFD = 태그 + 쉬운 이름(작게), 맵 = 쉬운 이름 (태그), Inspector 제목도 탭별. PFD에서 요소 선택 시 Inspector에 심볼 사전(기호·태그·설명). 스크린샷 `docs/v2/learn-*.png` (`node scripts/learn-screenshots.cjs`) |
-| P4-3 | M | 🔵 | P4 덩어리 PR. `learn/guide.ts` 단계(지시문·탭·대상 태그·완료 술어) + `advance`, `ui/GuidePanel.tsx`(시작 시 기준 예제 로드, 기존 보드는 확인 후 교체) |
-| P4-4 | L→H | 🔵 | P4 덩어리 PR. `learn/guides.ts` (a) 펌프 A→B 전환 (b) 제어밸브·바이패스, 각 단계 PFD/맵 왕복. **물리 검수**: 별도 H 세션 대신 `learn/guides.test.ts`가 기준 예제에서 가이드를 끝까지 실행하며 본문에 적힌 수치(병렬 +7 %, 펌프당 BEP 50 %, PI 4.7→5.2 bar, FCV 30 % → 40 m³/h, 바이패스 110 중 80 등)를 전부 검증 |
-| P4-5 | M | 🔵 | P4 덩어리 PR. `learn/why.ts` 운전점 차트(시스템 곡선 = 회전수를 바꿔 재해석한 운전점들 → 망 구조 무관 정확), 밸브 개도–유량 차트, `learn/explain.ts` 경고 3줄(무엇이/왜/바꾸면) → `WarningsPanel`. Inspector 수치도 `readouts` 경유로 교체(기존 `pressureField` 직접 계산 = §1.2 위반이었음) |
-| P5-1 | M | 🔵 | P4 덩어리 PR에 포함(P4-4 가이드가 이 예제의 태그 사용). 6", FCV-101 개도 0.5 → P-101A 92.5 m³/h = BEP 92 %. 우회로 HV-102 닫힘, P-101B 정지 |
-| P5-2 | M | ⬜ | |
-| P5-3 | H | ⬜ | |
+| P4-1 | L | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). `learn/glossary.ts` 16종(타일 12 + 계기 4): 쉬운 이름·한 줄 설명·심볼 해설·태그 읽는 법. 쉬운 이름은 태그로 세분(펌프 A/B, 제어/수동밸브). 맵의 `KIND_LABEL` 임시 이름 교체 |
+| P4-2 | M | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). PFD = 태그 + 쉬운 이름(작게), 맵 = 쉬운 이름 (태그), Inspector 제목도 탭별. PFD에서 요소 선택 시 Inspector에 심볼 사전(기호·태그·설명). 스크린샷 `docs/v2/learn-*.png` (`node scripts/learn-screenshots.cjs`) |
+| P4-3 | M | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). `learn/guide.ts` 단계(지시문·탭·대상 태그·완료 술어) + `advance`, `ui/GuidePanel.tsx`(시작 시 기준 예제 로드, 기존 보드는 확인 후 교체) |
+| P4-4 | L→H | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). `learn/guides.ts` (a) 펌프 A→B 전환 (b) 제어밸브·바이패스, 각 단계 PFD/맵 왕복. **물리 검수**: 별도 H 세션 대신 `learn/guides.test.ts`가 기준 예제에서 가이드를 끝까지 실행하며 본문에 적힌 수치(병렬 +7 %, 펌프당 BEP 50 %, PI 4.7→5.2 bar, FCV 30 % → 40 m³/h, 바이패스 110 중 80 등)를 전부 검증 |
+| P4-5 | M | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). `learn/why.ts` 운전점 차트(시스템 곡선 = 회전수를 바꿔 재해석한 운전점들 → 망 구조 무관 정확), 밸브 개도–유량 차트, `learn/explain.ts` 경고 3줄(무엇이/왜/바꾸면) → `WarningsPanel`. Inspector 수치도 `readouts` 경유로 교체(기존 `pressureField` 직접 계산 = §1.2 위반이었음) |
+| P5-1 | M | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30)에 포함(P4-4 가이드가 이 예제의 태그 사용). 6", FCV-101 개도 0.5 → P-101A 92.5 m³/h = BEP 92 %. 우회로 HV-102 닫힘, P-101B 정지 |
+| P5-2 | M | 🔵 | P5 덩어리 PR. `docs/VNV.md` — §5 10항목 기준값·출처·허용오차·실측·테스트 위치 + 보조 검증 + 알려진 한계. V&V-9 테스트가 없었음 → `physics/valveCv.test.ts` 신설(특성 곡선 비 10⁻⁶, ISA Cv 식 1 %) |
+| P5-3 | H | 🔵 | P5 덩어리 PR. 리뷰 보고서는 PR 설명. **수정**: `tripPump` 회전자 토크(ρgQH/η → 축동력, 체크밸브 닫힌 뒤 회전자 정지 불가 결함), 계기 단위 3중 정의 → readouts 단일화 + 불변식에 단위 추가. **후속 등록**: 아래 F1–F5 |
+
+**후속 과제 (P5-3 리뷰에서 등록)**
+
+| ID | 내용 | 근거 |
+|---|---|---|
+| F1 | 상태바 "송출" 유량을 `readouts`로 (계통 합계 셀렉터 추가) | §1.2 규칙 2 — 현재 `reservoirThroughput` 직접 계산. 두 모드 공통 표시라 모드 불일치는 아님 |
+| F2 | 범례 kPa 범위의 의미 표기 | 맵 색상(벽면 하중 휴리스틱) 척도라 readouts 압력(HGL)과 다른 양. 혼동 방지 문구 필요 |
+| F3 | V1 수격 패널을 "서지 점검" 패널로 재목적화 (`SURGE_CHECK` 워커 메시지 사용, `surgeCheckRecommended` 배지) | §3.2 계획, 담당 카드 없었음 |
+| F4 | 시나리오 러너 UI (`RUN_SCENARIO` 재생·타임라인) | P2-3 워커는 있으나 화면 진입점 없음 |
+| F5 | 수조 고갈(수위 < 0) 처리, 회전자 기계 손실 | VNV.md 알려진 한계 |
 
 ---
 
-## 5. V&V 목록 (완료 판정 기준)
+## 5. V&V 목록 (완료 판정 기준) — 상세 기록: [`docs/VNV.md`](VNV.md)
 
 | # | 항목 | 기준 | 상태 |
 |---|---|---|---|
-| 1 | 마찰계수 | Churchill vs Moody/Colebrook | V1 테스트 존재 |
-| 2 | 망해석 | GGA vs 손계산 루프 예제 | V1 테스트 존재 |
-| 3 | 수격 | Joukowsky `a·V0/g`, 주기 `4L/a` | V1 테스트 존재 |
+| 1 | 마찰계수 | Churchill vs Moody/Colebrook | ✅ `physics/friction.test.ts` (층류 비 1.0, Moody 3점) |
+| 2 | 망해석 | GGA vs 손계산 루프 예제 | ✅ `physics/steadySolver.test.ts` (단관 3.9e-9) |
+| 3 | 수격 | Joukowsky `a·V0/g`, 주기 `4L/a` | ✅ `physics/transient.test.ts` (Joukowsky 비 1.0000000) |
 | 4 | 단일 펌프 운전점 | 2차 펌프곡선 ∩ 2차 시스템곡선 해석해 (근의 공식) | ✅ `physics/scenario.test.ts` (근의 공식, 상대오차 < 1e-6) |
 | 5 | 병렬 펌프 A+B | 동일 펌프 2대: 같은 수두에서 유량 2배 합성 곡선과 교점 일치 | ✅ `physics/scenario.test.ts` (합성곡선 교점 < 1e-6, A→B 전환 포함) |
 | 6 | 수조 질량 보존 | 시나리오 전 구간 `∫(Q_in − Q_out)dt = A·Δh` (상대오차 < 1e-6) | ✅ `physics/scenario.test.ts` (2개 수조, 상대오차 < 1e-6, 총량 < 1e-9) |
 | 7 | 준정상 정합 | 이벤트 없는 시나리오 = 정상해 (모든 스텝 동일) | ✅ `physics/scenario.test.ts` (전 스텝 1e-9) |
 | 8 | MOC 펌프 기동 | 정상 도달 후 MOC 해 = GGA 정상해 (허용오차 < 0.5 %) | ✅ `physics/pumpStart.test.ts` (< 0.5 %) |
-| 9 | 제어밸브 | 개도별 유량 = Cv 특성곡선 계산값 | 신규 |
+| 9 | 제어밸브 | 개도별 유량 = Cv 특성곡선 계산값 | ✅ `physics/valveCv.test.ts` (특성 7.4e-13, Cv 식 2.0e-4) |
 | 10 | 모드 일치 | §1.2 불변식 테스트 | ✅ `render/modeAgreement.test.ts` (무작위 200, 주입 4종 실패 확인) |
 
 ---

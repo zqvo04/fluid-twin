@@ -34,6 +34,7 @@ function modeAgreement(pfd: RenderItem[], map: RenderItem[], readout: (id: strin
         errors.push(`${mode} ${item.id}: no readout`);
         continue;
       }
+      if (item.unit !== r.unit && item.unit !== undefined) errors.push(`${mode} ${item.id}: unit ${item.unit} ≠ readout ${r.unit}`);
       for (const k of Object.keys(item.values) as ValueKey[]) {
         if (!Object.is(item.values[k], r[k])) errors.push(`${mode} ${item.id}.${k}: ${item.values[k]} ≠ readout ${r[k]}`);
       }
