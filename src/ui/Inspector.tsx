@@ -9,7 +9,7 @@ import { elementReadout } from '../readouts';
 import { GLOSSARY, easyName } from '../learn/glossary';
 import { nextTag, tagCode } from '../grid/tags';
 import { m3hToM3s, m3sToM3h } from '../domain/units';
-import { solvedState } from './solved';
+import { useDisplayState } from './solved';
 import { WhyChart } from './WhyChart';
 
 /** What each pump condition means, in one line. */
@@ -112,13 +112,16 @@ export function Inspector() {
   const selectTile = useAppStore((s) => s.selectTile);
   const viewMode = useAppStore((s) => s.viewMode);
 
-  const tile = grid.tiles.find((t) => t.id === selectedTileId);
 
-  // Same numbers as both canvases: readouts.ts is the only source (§1.2).
-  const solved = useMemo(() => solvedState(result, grid), [result, grid]);
+  // Same numbers as both canvases: readouts.ts is the only source (§1.2) —
+  // during playback, the frame's numbers on the grid as it stands then.
+  const { grid: shown, solved, playing } = useDisplayState();
+  // During playback the panel shows the tile as it stands at the frame (speed,
+  // opening, level) and is read-only: the scenario, not the editor, sets them.
+  const tile = shown.tiles.find((t) => t.id === selectedTileId);
   const readout = useMemo(
-    () => (tile && solved ? elementReadout(grid, compiled, solved, tile.id) : null),
-    [tile, solved, grid, compiled],
+    () => (tile && solved ? elementReadout(shown, compiled, solved, tile.id) : null),
+    [tile, solved, shown, compiled],
   );
 
   const pumpHealth = useMemo(() => {
@@ -185,6 +188,8 @@ export function Inspector() {
         </div>
       )}
 
+      {playing && <p className="hint">시나리오 재생 중: 이 시각의 상태입니다(편집 잠금).</p>}
+      <fieldset className="plain" disabled={playing}>
       {(tile.kind === 'straight' || tile.kind === 'elbow' || tile.kind === 'tee' || tile.kind === 'cross' || tile.kind === 'valve') && (
         <>
           <label className="ef">
@@ -277,7 +282,8 @@ export function Inspector() {
               onChange={(e) => updateSelectedTile({ checkValve: e.target.checked })}
             />
           </label>
-          {pumpHealth && <PumpReadout health={pumpHealth} />}
+          {/* Pump health is a steady-solve verdict, not a played-back moment's. */}
+          {pumpHealth && !playing && <PumpReadout health={pumpHealth} />}
         </>
       )}
 
@@ -356,7 +362,7 @@ export function Inspector() {
         </>
       )}
 
-      {solved && (tile.kind === 'pump' || tile.kind === 'valve') && <WhyChart grid={grid} result={solved} tileId={tile.id} />}
+      {solved && !playing && (tile.kind === 'pump' || tile.kind === 'valve') && <WhyChart grid={grid} result={solved} tileId={tile.id} />}
 
       {tile.kind === 'source' && (
         <label className="ef">
@@ -389,7 +395,9 @@ export function Inspector() {
         </>
       )}
 
-      <button className="wide danger" onClick={deleteSelected} style={{ marginTop: 12 }}>
+      </fieldset>
+
+      <button className="wide danger" disabled={playing} onClick={deleteSelected} style={{ marginTop: 12 }}>
         삭제
       </button>
     </div>

@@ -17,6 +17,7 @@ import { NominalSize, Schedule } from '../domain/catalog/pipes';
 import { ValveType } from '../domain/catalog/valves';
 import { SolveSteadyResponse, NetTransientFrame } from '../worker/protocol';
 import { PumpHealth } from '../analysis/pumpHealth';
+import { ScenarioFrame } from '../physics/scenario';
 
 export type EditMode = 'place' | 'select' | 'delete';
 
@@ -87,6 +88,16 @@ interface AppState {
   /** Running guided scenario (learn/guides.ts) and its current step. */
   guide: { id: string; step: number } | null;
   setGuide: (g: { id: string; step: number } | null) => void;
+  /**
+   * Scenario playback. Frames belong to the exact grid they were run on:
+   * once the grid is edited they no longer apply (see `activeFrame`).
+   */
+  playback: { grid: GridModel; frames: ScenarioFrame[]; index: number; running: boolean } | null;
+  beginPlayback: () => void;
+  pushFrame: (frame: ScenarioFrame, done: boolean) => void;
+  seekFrame: (index: number) => void;
+  endPlayback: () => void;
+  clearPlayback: () => void;
 
   mode: EditMode;
   armedKind: TileKind;
@@ -154,6 +165,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   setViewMode: (viewMode) => set({ viewMode }),
   guide: null,
   setGuide: (guide) => set({ guide }),
+  playback: null,
+  beginPlayback: () => set({ playback: { grid: get().grid, frames: [], index: 0, running: true } }),
+  pushFrame: (frame, done) => {
+    const p = get().playback;
+    if (!p) return;
+    const frames = [...p.frames, frame];
+    // While running, the view follows the newest frame.
+    set({ playback: { ...p, frames, index: frames.length - 1, running: p.running && !done } });
+  },
+  seekFrame: (index) => {
+    const p = get().playback;
+    if (p) set({ playback: { ...p, index: Math.max(0, Math.min(p.frames.length - 1, index)) } });
+  },
+  endPlayback: () => {
+    const p = get().playback;
+    if (p) set({ playback: { ...p, running: false } });
+  },
+  clearPlayback: () => set({ playback: null }),
 
   mode: 'place',
   armedKind: 'straight',
@@ -326,3 +355,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
 // Re-export catalog types the UI needs alongside the store.
 export type { NominalSize, Schedule, ValveType };
+
+/** The scenario frame on screen, or null: none run, or the grid was edited since. */
+export function activeFrame(s: Pick<AppState, 'playback' | 'grid'>): ScenarioFrame | null {
+  const p = s.playback;
+  return p && p.grid === s.grid ? p.frames[p.index] ?? null : null;
+}
