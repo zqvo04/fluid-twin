@@ -25,7 +25,7 @@ import { FluidState, waterProperties } from '../domain/fluid';
 import { PipelineNetwork, hasCheckValve } from '../domain/network';
 import { pipeGeometry, A106B } from '../domain/catalog/pipes';
 import { valveK } from '../domain/catalog/valves';
-import { PumpSpec, pumpShaftPower } from '../domain/catalog/pumps';
+import { PumpSpec, rotorBrakingTorque } from '../domain/catalog/pumps';
 import { fittingK } from '../domain/catalog/fittings';
 import { reynolds, churchillFriction } from './friction';
 import { waveSpeed } from './waveSpeed';
@@ -383,14 +383,14 @@ export class NetworkTransientSim {
       p.Q = Qn;
     }
 
-    // 4) Rotor dynamics for tripped pumps: I dω/dt = -T_fluid, T = P_shaft/ω.
-    // Shaft power, not ρgQH/η: once the check valve shuts (Q = 0) the impeller
-    // still churns the trapped liquid and brakes on it — with ρgQH/η the torque
-    // would vanish there and the rotor never stop. A heavier rotor (more
-    // inertia) still sustains flow longer and softens the surge.
+    // 4) Rotor dynamics for tripped pumps: I dω/dt = -T_brake. The fluid part
+    // is P_shaft/ω, not ρgQH/η: once the check valve shuts (Q = 0) the impeller
+    // still churns the trapped liquid and brakes on it. Bearing/seal drag
+    // brings it to rest in finite time. A heavier rotor (more inertia) still
+    // sustains flow longer and softens the surge.
     for (const p of this.pumps) {
       if (!p.tripped || p.forced || p.alpha <= 0) continue;
-      const torque = pumpShaftPower(p.spec, Math.max(0, p.qLast), p.alpha, this.fluid.rho) / (p.alpha * p.omegaR);
+      const torque = rotorBrakingTorque(p.spec, Math.max(0, p.qLast), p.alpha, this.fluid.rho);
       const dAlpha = -(torque * this.dt) / (p.inertia * p.omegaR);
       p.alpha = Math.max(0, p.alpha + dAlpha);
     }

@@ -131,6 +131,12 @@ export function ScenarioPanel() {
               aria-label="재생 시각"
             />
           </label>
+          {frame && frame.dryBasins.length > 0 && (
+            <p className="hint" role="alert">
+              <b className="badge warn">수조 고갈</b> {frame.dryBasins.map((id) => tagOf(grid, id)).join(', ')} — 흡입 상실: 이 수조에서 빨아들이는
+              펌프가 송출하지 못합니다.
+            </p>
+          )}
           <button className="wide" disabled={running} onClick={clearPlayback}>
             정상 상태로 돌아가기
           </button>

@@ -172,3 +172,48 @@ describe('V&V-7 quasi-steady consistency', () => {
     expect((compiled.network.links.find((l) => l.id === e.id) as PumpLink).kind).toBe('pump');
   });
 });
+
+describe('basin running dry (F5)', () => {
+  it('never goes below empty; the pumps drawing on it lose prime and stop delivering', () => {
+    // TK-1 (0.5 m², 0.2 m of water) → pump → spray into TK-2: empties in a few seconds.
+    let g: GridModel = emptyGrid(6, 3, 1);
+    g = place(g, 'basin', 0, 2, ['E']);
+    g = place(g, 'pump', 1, 2, ['W', 'E']);
+    g = place(g, 'straight', 2, 2, ['E', 'W']);
+    g = place(g, 'elbow', 3, 2, ['W', 'N']);
+    g = place(g, 'straight', 3, 1, ['N', 'S']);
+    g = place(g, 'elbow', 3, 0, ['S', 'E']);
+    g = place(g, 'spray', 4, 0, ['W']);
+    g = place(g, 'basin', 5, 2, ['E']);
+    const [tk1, pump, , , , , spray, tk2] = g.tiles.map((t) => t.id);
+    g = updateTile(updateTile(updateTile(g, spray, { returnBasinId: tk2 }), tk1, { area: 0.5, level: 0.2 }), tk2, { area: 20 });
+    const compiled = compile(g);
+    const m = scenarioModel(g, compiled);
+    const dt = 0.5;
+    const fs = frames(m, [], 20, dt);
+    const link = compiled.tileLink.get(pump)!;
+
+    for (const f of fs) {
+      expect(f.result.converged, `t=${f.t}`).toBe(true);
+      expect(f.levels[tk1]).toBeGreaterThanOrEqual(0);
+    }
+    const dry = fs.filter((f) => f.dryBasins.includes(tk1));
+    expect(dry.length).toBeGreaterThan(10); // dry for most of the run
+    // Unprimed pump = blocked line: only the solver's blocked-pump leak (~1e-6 m³/s, shown as 0.0 m³/h).
+    for (const f of dry) expect(Math.abs(f.result.links.get(link)!.flow)).toBeLessThan(1e-5);
+    // Prime is lost before a step could overdraw: a little water is left, none is created.
+    expect(fs[fs.length - 1].levels[tk1]).toBeLessThan(0.06);
+    const vol = (f: ScenarioFrame) => 0.5 * f.levels[tk1] + 20 * f.levels[tk2];
+    expect(Math.abs(vol(fs[fs.length - 1]) / vol(fs[0]) - 1)).toBeLessThan(1e-9);
+  });
+});
+
+describe('rotor coast-down (F5)', () => {
+  it('bearing/seal drag stops a tripped rotor in finite time', () => {
+    const fs = frames(model(pumpNetwork(1)), [{ kind: 'pumpStop', t: 0, id: 'P0' }], 300);
+    const stop = fs.find((f) => f.speeds.P0 === 0);
+    expect(stop).toBeDefined();
+    expect(stop!.t).toBeLessThan(300);
+    for (let i = 1; i < fs.length; i++) expect(fs[i].speeds.P0).toBeLessThanOrEqual(fs[i - 1].speeds.P0);
+  });
+});

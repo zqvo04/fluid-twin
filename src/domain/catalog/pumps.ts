@@ -199,6 +199,26 @@ export function pumpShaftPower(spec: PumpSpec, q: number, n: number, rho: number
 }
 
 /**
+ * Bearing and seal drag as a fraction of the rated torque. It barely depends
+ * on speed (Coulomb-like), unlike the fluid's ∝ n² torque, so it is what
+ * brings an unpowered rotor to rest in finite time. Order of the mechanical
+ * losses of an end-suction centrifugal pump: 1–2 % of rated power.
+ */
+export const MECH_LOSS_TORQUE_FRACTION = 0.015;
+
+/**
+ * Torque braking an unpowered rotor at speed ratio n [N·m]: the fluid's
+ * (shaft power / ω — nonzero even at shutoff, where the impeller churns) plus
+ * the mechanical drag. Shared by the MOC trip and the scenario coast-down.
+ */
+export function rotorBrakingTorque(spec: PumpSpec, q: number, n: number, rho: number): number {
+  if (n <= 0) return 0;
+  const omegaR = (spec.ratedRpm * 2 * Math.PI) / 60;
+  const ratedTorque = pumpShaftPower(spec, spec.bepFlow, 1, rho) / omegaR;
+  return pumpShaftPower(spec, q, n, rho) / (n * omegaR) + MECH_LOSS_TORQUE_FRACTION * ratedTorque;
+}
+
+/**
  * Rate of temperature rise [K/s] of the liquid held in the casing when the
  * pump churns. `heatPower` is the shaft power that does not leave as useful
  * hydraulic work; with no throughflow it all lands in the trapped liquid.
