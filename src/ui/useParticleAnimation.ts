@@ -6,6 +6,7 @@
 
 import { RefObject, useEffect, useRef } from 'react';
 import { useAppStore } from './store';
+import { useDisplayState } from './solved';
 import {
   buildFlowGraph,
   spawnParticle,
@@ -24,24 +25,31 @@ const MAX_DT = 0.05; // clamp long frame gaps (tab backgrounded, etc.)
 export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
   const grid = useAppStore((s) => s.grid);
   const compiled = useAppStore((s) => s.compiled);
-  const result = useAppStore((s) => s.result);
   const showFlow = useAppStore((s) => s.showFlow);
+  // Flows of the steady solve, or of the scenario frame being played back.
+  const { solved } = useDisplayState();
 
   const particlesRef = useRef<Particle[]>([]);
   const graphRef = useRef<FlowGraph | null>(null);
   const flowsRef = useRef<Map<string, LinkFlow>>(new Map());
   const geometriesRef = useRef<Map<string, LinkGeometry>>(new Map());
 
-  // Rebuild the flow graph/geometry/particle pool whenever the solved
-  // network changes shape or the solve result updates.
+  // Network the particle pool was seeded on (see below).
+  const seededFor = useRef<typeof compiled | null>(null);
+
+  // Rebuild the flow graph/geometry whenever the solved network changes shape
+  // or the solve result updates. The particle pool itself is only re-seeded
+  // when the network changes: scenario playback streams a new result ~40×/s,
+  // and re-seeding on each would make the particles flicker instead of flow.
   useEffect(() => {
-    if (!showFlow || !result || !result.converged) {
+    if (!showFlow || !solved) {
       particlesRef.current = [];
       graphRef.current = null;
+      seededFor.current = null;
       return;
     }
     const flows = new Map<string, LinkFlow>();
-    for (const [id, r] of result.links) flows.set(id, { flow: r.flow, velocity: r.velocity });
+    for (const [id, r] of solved.links) flows.set(id, { flow: r.flow, velocity: r.velocity });
     fillPumpVelocities(grid, compiled, flows);
 
     const graph = buildFlowGraph(compiled.network, flows);
@@ -50,6 +58,8 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
     graphRef.current = graph;
     geometriesRef.current = geometries;
 
+    if (seededFor.current === compiled && particlesRef.current.length) return;
+    seededFor.current = compiled;
     const target = Math.min(600, Math.max(40, compiled.network.links.length * 15));
     const particles: Particle[] = [];
     for (let i = 0; i < target; i++) {
@@ -57,7 +67,7 @@ export function useParticleAnimation(canvasRef: RefObject<HTMLCanvasElement>) {
       if (p) particles.push(p);
     }
     particlesRef.current = particles;
-  }, [grid, compiled, result, showFlow]);
+  }, [grid, compiled, solved, showFlow]);
 
   const rebalanceAccum = useRef(0);
 

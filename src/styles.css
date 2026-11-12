@@ -844,3 +844,4 @@ button.danger:hover {
 .readout.glossary p { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }
 .panel.guide p { font-size: var(--text-sm); line-height: 1.5; margin: 6px 0; }
 .panel.guide .wide + .wide { margin-top: 6px; }
+.inspector fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from './store';
 import { buildMapList, drawMap } from '../render/mapLayer';
 import { buildPfdList, drawPfd } from '../render/pfdLayer';
-import { solvedState } from './solved';
+import { useDisplayState } from './solved';
 import { screenToCell, zoomAt, panBy } from '../render/viewport';
 import { makeTile, DEFAULT_TILE_DEFAULTS } from '../grid/ops';
 import { computePressureField } from '../render/pressureField';
@@ -32,6 +32,8 @@ export function GridCanvas() {
   const transientActive = useAppStore((s) => s.transient.running || s.transient.history.length > 0);
   const themeTick = useAppStore((s) => s.themeTick);
   const viewMode = useAppStore((s) => s.viewMode);
+  // Steady result, or the scenario frame being played back (with the grid as it stands then).
+  const display = useDisplayState();
 
   const setHoverCell = useAppStore((s) => s.setHoverCell);
   const clickCell = useAppStore((s) => s.clickCell);
@@ -82,13 +84,19 @@ export function GridCanvas() {
     // flow/velocity, so its overlay falls back to the plain HGL-pressure
     // behavior (no static/wall-load correction) during a running surge.
     if (transientActive && transientHeads) return computePressureField(grid, compiled, transientHeads);
+    if (display.playing) return display.solved ? computePressureField(display.grid, compiled, display.solved.heads, display.solved.links) : null;
     return result ? computePressureField(grid, compiled, result.heads, result.links) : null;
-  }, [showPressure, result, grid, compiled, transientActive, transientHeads]);
+  }, [showPressure, result, grid, compiled, transientActive, transientHeads, display]);
 
   // Both modes read numbers through readouts.ts; a diverged solve shows none.
-  const solved = useMemo(() => solvedState(result, grid), [result, grid]);
-  const pfdList = useMemo(() => (viewMode === 'pfd' ? buildPfdList(grid, compiled, solved) : null), [viewMode, grid, compiled, solved]);
-  const mapList = useMemo(() => (viewMode === 'map' ? buildMapList(grid, compiled, solved) : null), [viewMode, grid, compiled, solved]);
+  const pfdList = useMemo(
+    () => (viewMode === 'pfd' ? buildPfdList(display.grid, compiled, display.solved) : null),
+    [viewMode, display, compiled],
+  );
+  const mapList = useMemo(
+    () => (viewMode === 'map' ? buildMapList(display.grid, compiled, display.solved) : null),
+    [viewMode, display, compiled],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -98,21 +106,22 @@ export function GridCanvas() {
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (pfdList) {
-      drawPfd(ctx, view, grid, pfdList, { hoverCell, selectedTileId, ghostTile });
+      drawPfd(ctx, view, display.grid, pfdList, { hoverCell, selectedTileId, ghostTile });
     } else {
-      drawMap(ctx, view, grid, mapList ?? [], {
+      drawMap(ctx, view, display.grid, mapList ?? [], {
         hoverCell,
         selectedTileId,
         excludedTileIds,
         ghostTile,
         compiled,
         pressureField,
-        pumpHealth: result?.pumps ?? null,
+        // Pump health belongs to the steady solve, not to a played-back moment.
+        pumpHealth: display.playing ? null : result?.pumps ?? null,
       });
     }
     // ghostTile is derived fresh each render from hoverCell/armedKind/etc, so
     // it is intentionally excluded from the dep list to avoid an identity churn.
-  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, result, themeTick, pfdList, mapList]);
+  }, [display, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, result, themeTick, pfdList, mapList]);
 
   const eventCell = useCallback(
     (e: React.MouseEvent) => {

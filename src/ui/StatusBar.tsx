@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useAppStore } from './store';
+import { activeFrame, useAppStore } from './store';
 import { tileAt } from '../grid/ops';
 import { KIND_LABEL } from './kindLabels';
 import { reservoirThroughput } from '../analysis/networkVulnerability';
@@ -17,7 +17,10 @@ export function StatusBar() {
   const compiled = useAppStore((s) => s.compiled);
   const hoverCell = useAppStore((s) => s.hoverCell);
   const solving = useAppStore((s) => s.solving);
-  const result = useAppStore((s) => s.result);
+  const steady = useAppStore((s) => s.result);
+  const frame = useAppStore(activeFrame);
+  // During scenario playback the bar reports the frame on screen.
+  const result = frame ? frame.result : steady;
   const issues = useAppStore((s) => s.issues);
 
   const hoverTile = hoverCell ? tileAt(grid, hoverCell) : undefined;
@@ -41,6 +44,7 @@ export function StatusBar() {
     solverLabel = result.converged ? '수렴' : '수렴 실패';
     solverClass = result.converged ? 'ok' : 'danger';
   }
+  if (frame) solverLabel = `재생 t = ${frame.t.toFixed(1)} s · ${solverLabel}`;
 
   return (
     <footer className="statusbar">

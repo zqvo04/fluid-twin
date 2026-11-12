@@ -334,8 +334,8 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | P4-4 | L→H | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). `learn/guides.ts` (a) 펌프 A→B 전환 (b) 제어밸브·바이패스, 각 단계 PFD/맵 왕복. **물리 검수**: 별도 H 세션 대신 `learn/guides.test.ts`가 기준 예제에서 가이드를 끝까지 실행하며 본문에 적힌 수치(병렬 +7 %, 펌프당 BEP 50 %, PI 4.7→5.2 bar, FCV 30 % → 40 m³/h, 바이패스 110 중 80 등)를 전부 검증 |
 | P4-5 | M | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30). `learn/why.ts` 운전점 차트(시스템 곡선 = 회전수를 바꿔 재해석한 운전점들 → 망 구조 무관 정확), 밸브 개도–유량 차트, `learn/explain.ts` 경고 3줄(무엇이/왜/바꾸면) → `WarningsPanel`. Inspector 수치도 `readouts` 경유로 교체(기존 `pressureField` 직접 계산 = §1.2 위반이었음) |
 | P5-1 | M | ✅ | [PR #30](https://github.com/zqvo04/fluid-twin/pull/30)에 포함(P4-4 가이드가 이 예제의 태그 사용). 6", FCV-101 개도 0.5 → P-101A 92.5 m³/h = BEP 92 %. 우회로 HV-102 닫힘, P-101B 정지 |
-| P5-2 | M | 🔵 | P5 덩어리 PR. `docs/VNV.md` — §5 10항목 기준값·출처·허용오차·실측·테스트 위치 + 보조 검증 + 알려진 한계. V&V-9 테스트가 없었음 → `physics/valveCv.test.ts` 신설(특성 곡선 비 10⁻⁶, ISA Cv 식 1 %) |
-| P5-3 | H | 🔵 | P5 덩어리 PR. 리뷰 보고서는 PR 설명. **수정**: `tripPump` 회전자 토크(ρgQH/η → 축동력, 체크밸브 닫힌 뒤 회전자 정지 불가 결함), 계기 단위 3중 정의 → readouts 단일화 + 불변식에 단위 추가. **후속 등록**: 아래 F1–F5 |
+| P5-2 | M | ✅ | [PR #31](https://github.com/zqvo04/fluid-twin/pull/31). `docs/VNV.md` — §5 10항목 기준값·출처·허용오차·실측·테스트 위치 + 보조 검증 + 알려진 한계. V&V-9 테스트가 없었음 → `physics/valveCv.test.ts` 신설(특성 곡선 비 10⁻⁶, ISA Cv 식 1 %) |
+| P5-3 | H | ✅ | [PR #31](https://github.com/zqvo04/fluid-twin/pull/31). 리뷰 보고서는 PR 설명. **수정**: `tripPump` 회전자 토크(ρgQH/η → 축동력, 체크밸브 닫힌 뒤 회전자 정지 불가 결함), 계기 단위 3중 정의 → readouts 단일화 + 불변식에 단위 추가. **후속 등록**: 아래 F1–F5 |
 
 **후속 과제 (P5-3 리뷰에서 등록)**
 
@@ -344,7 +344,7 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | F1 | 상태바 "송출" 유량을 `readouts`로 (계통 합계 셀렉터 추가) | §1.2 규칙 2 — 현재 `reservoirThroughput` 직접 계산. 두 모드 공통 표시라 모드 불일치는 아님 |
 | F2 | 범례 kPa 범위의 의미 표기 | 맵 색상(벽면 하중 휴리스틱) 척도라 readouts 압력(HGL)과 다른 양. 혼동 방지 문구 필요 |
 | F3 | V1 수격 패널을 "서지 점검" 패널로 재목적화 (`SURGE_CHECK` 워커 메시지 사용, `surgeCheckRecommended` 배지) | §3.2 계획, 담당 카드 없었음 |
-| F4 | 시나리오 러너 UI (`RUN_SCENARIO` 재생·타임라인) | P2-3 워커는 있으나 화면 진입점 없음 |
+| F4 | 🔵 시나리오 재생 UI — 이벤트 목록 편집·예제·재생·시각 슬라이더. 재생 중 두 탭·Inspector·입자·상태바가 같은 프레임(`gridAtFrame` + 프레임 결과 → `readouts`), Inspector 편집 잠금. 스크린샷 `docs/v2/scenario-*.png` | P2-3 워커는 있으나 화면 진입점 없음 |
 | F5 | 수조 고갈(수위 < 0) 처리, 회전자 기계 손실 | VNV.md 알려진 한계 |
 
 ---
