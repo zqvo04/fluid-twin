@@ -20,6 +20,9 @@ import { PumpHealth } from '../analysis/pumpHealth';
 
 export type EditMode = 'place' | 'select' | 'delete';
 
+/** Which drawing of the one model is shown (§1.1). Selection, hover and viewport are shared. */
+export type ViewMode = 'pfd' | 'map';
+
 export interface SteadyUiResult {
   converged: boolean;
   iterations: number;
@@ -79,6 +82,8 @@ function recompile(grid: GridModel): { compiled: CompileResult; issues: Validati
 interface AppState {
   grid: GridModel;
   view: Viewport;
+  viewMode: ViewMode;
+  setViewMode: (m: ViewMode) => void;
 
   mode: EditMode;
   armedKind: TileKind;
@@ -142,6 +147,8 @@ const INITIAL_GRID = emptyGrid(16, 10, 1);
 export const useAppStore = create<AppState>((set, get) => ({
   grid: INITIAL_GRID,
   view: defaultViewport(960, 640, INITIAL_GRID.cols, INITIAL_GRID.rows),
+  viewMode: 'map',
+  setViewMode: (viewMode) => set({ viewMode }),
 
   mode: 'place',
   armedKind: 'straight',

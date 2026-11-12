@@ -320,14 +320,14 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | P1-2 | M | ✅ | [PR #27](https://github.com/zqvo04/fluid-twin/pull/27). 신규 4종 컴파일(strainer/hx/spray = `PipeLink.minorK`, basin = reservoir), v1→v3 마이그레이션(프리셋 전부 네트워크 동일 검증). **범위 밖 수정 1건**: `physics/resistance.ts`·`networkTransient.ts`에 `minorK` 합산 1줄씩 (K-only 요소 표현에 필수). `merge.ts` 변경 불필요 |
 | P1-3 | M | ✅ | [PR #27](https://github.com/zqvo04/fluid-twin/pull/27). `grid/tags.ts`: 배치 시 자동 부여, 형식·코드/역할·중복 검사 → compile issues(warning). 펌프 A/B 자동 짝(shortcut: 단일 서비스 가정) |
 | P1-4 | H | ✅ | [PR #27](https://github.com/zqvo04/fluid-twin/pull/27). `src/readouts.ts`: `elementReadout(model, compiled, result, id)` — 카드 시그니처에 `compiled` 추가(노드 매핑 필요). 수동 요소 유량·입출구는 실제 흐름 방향 기준. 전 타일 12종·계기 4종 테스트 |
-| P2-1 | H | 🔵 | P2 덩어리 PR. `physics/scenario.ts` 제너레이터(프레임 스트리밍 가능) + `grid/scenario.ts` 어댑터(타일 id→링크 id, 수조·살수 복귀). 펌프 정지 = 축동력 기반 관성 감속(차단 체크밸브 뒤에서도 churn 토크로 정지) |
-| P2-2 | H | 🔵 | P2 덩어리 PR. `startPump`, `surgeCheck`, `surgeCheckRecommended`. MOC 마찰을 준정상(매 스텝 유량 기반 f)으로 변경 — 정지 상태 기동 시 f(Re≈0) 고정 문제 해결, 기존 MOC 테스트 무수정 통과. 모터 구동 펌프 있을 때만 Newton 백트래킹(험프 곡선 2-cycle). **발견(범위 밖, 미수정)**: 기존 `tripPump` 회전자 토크 ρgQH/η → 체크밸브 닫히면 토크 0, 회전자가 멈추지 않음. 기존 테스트는 Newton 진동이 만든 가짜 유량으로 통과 중 → 후속 수정 필요(축동력 기반 토크, 시나리오 러너와 동일 방식) |
-| P2-3 | M | 🔵 | P2 덩어리 PR. `RUN_SCENARIO`(프레임 스트리밍, STOP_TRANSIENT로 중단) / `SURGE_CHECK`. 테스트는 실제 워커 모듈을 가짜 `self`로 구동, 메시지 전부 structuredClone 왕복 |
-| P3-1 | L | ⬜ | |
-| P3-2 | M | ⬜ | |
-| P3-3 | M | ⬜ | |
-| P3-4 | M | ⬜ | |
-| P3-5 | H | ⬜ | |
+| P2-1 | H | ✅ | [PR #28](https://github.com/zqvo04/fluid-twin/pull/28). `physics/scenario.ts` 제너레이터(프레임 스트리밍 가능) + `grid/scenario.ts` 어댑터(타일 id→링크 id, 수조·살수 복귀). 펌프 정지 = 축동력 기반 관성 감속(차단 체크밸브 뒤에서도 churn 토크로 정지) |
+| P2-2 | H | ✅ | [PR #28](https://github.com/zqvo04/fluid-twin/pull/28). `startPump`, `surgeCheck`, `surgeCheckRecommended`. MOC 마찰을 준정상(매 스텝 유량 기반 f)으로 변경 — 정지 상태 기동 시 f(Re≈0) 고정 문제 해결, 기존 MOC 테스트 무수정 통과. 모터 구동 펌프 있을 때만 Newton 백트래킹(험프 곡선 2-cycle). **발견(범위 밖, 미수정)**: 기존 `tripPump` 회전자 토크 ρgQH/η → 체크밸브 닫히면 토크 0, 회전자가 멈추지 않음. 기존 테스트는 Newton 진동이 만든 가짜 유량으로 통과 중 → 후속 수정 필요(축동력 기반 토크, 시나리오 러너와 동일 방식) |
+| P2-3 | M | ✅ | [PR #28](https://github.com/zqvo04/fluid-twin/pull/28). `RUN_SCENARIO`(프레임 스트리밍, STOP_TRANSIENT로 중단) / `SURGE_CHECK`. 테스트는 실제 워커 모듈을 가짜 `self`로 구동, 메시지 전부 structuredClone 왕복 |
+| P3-1 | L | 🔵 | P3 덩어리 PR. `render/pfdSymbols.ts` 15종(표준 출처 주석), 시트 `docs/v2/pfd-symbols.png` (`node scripts/pfd-symbol-sheet.cjs`) — **사용자 육안 승인 대기** |
+| P3-2 | M | 🔵 | P3 덩어리 PR. `render/pfdLayer.ts` + 공용 `render/renderList.ts`. 라인 번호는 배관 타일이 있는 런에만 표기(장비 직결 런은 ◇번호 + 스트림 테이블) |
+| P3-3 | M | 🔵 | P3 덩어리 PR. `render/mapLayer.ts` = V1 `tileLayer` 그대로 + 말풍선. 신규 4종 아이콘(`sprites.ts`)·팔레트 추가. 말풍선은 선택/호버 요소만(전체 표시 시 1셀 간격에서 겹침). 쉬운 이름은 `KIND_LABEL` 임시 — P4-1 사전으로 교체(shortcut 주석) |
+| P3-4 | M | 🔵 | P3 덩어리 PR. store `viewMode`, 상단 `PFD | 맵` 탭, `GridCanvas` 디스패치, PFD에서 입자 캔버스 숨김. 스크린샷 `docs/v2/mode-{pfd,map}.png` (`node scripts/mode-screenshots.cjs`). **미구현(후속)**: Inspector에서 신규 타일 고유 속성(면적·수위·막힘·설계점·노즐 K·복귀 수조)과 밸브 `service`·펌프 `running` 편집 |
+| P3-5 | H | 🔵 | P3 덩어리 PR. `render/modeAgreement.test.ts`: 시드 고정 무작위 모델 200개(값 비교 500+), 불일치 4종(요소 누락·값 변조·셀 이동·중복) 주입 시 실패 확인 |
 | P4-1 | L | ⬜ | |
 | P4-2 | M | ⬜ | |
 | P4-3 | M | ⬜ | |
@@ -352,7 +352,7 @@ P1-4 → P4-5 ;  P1-3 → P5-1 ;  전부 → P5-2 → P5-3
 | 7 | 준정상 정합 | 이벤트 없는 시나리오 = 정상해 (모든 스텝 동일) | ✅ `physics/scenario.test.ts` (전 스텝 1e-9) |
 | 8 | MOC 펌프 기동 | 정상 도달 후 MOC 해 = GGA 정상해 (허용오차 < 0.5 %) | ✅ `physics/pumpStart.test.ts` (< 0.5 %) |
 | 9 | 제어밸브 | 개도별 유량 = Cv 특성곡선 계산값 | 신규 |
-| 10 | 모드 일치 | §1.2 불변식 테스트 | 신규 |
+| 10 | 모드 일치 | §1.2 불변식 테스트 | ✅ `render/modeAgreement.test.ts` (무작위 200, 주입 4종 실패 확인) |
 
 ---
 

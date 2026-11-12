@@ -9,8 +9,17 @@
 
 import { CompileResult } from './grid/compile';
 import { GridModel, Instrument, InstrumentType, Tile, TileKind, cellElevation } from './grid/types';
-import { SteadyResult } from './physics/steadySolver';
 import { G, m3sToM3h, paToBar } from './domain/units';
+
+/**
+ * The solved state readouts need — a SolvedState, a scenario frame's
+ * result, or the UI's worker result plus its fluid all fit.
+ */
+export interface SolvedState {
+  heads: Map<string, number>;
+  links: Map<string, { flow: number; velocity: number; headLoss: number }>;
+  fluid: { rho: number };
+}
 
 export interface Readout {
   /** Tile id, or the instrument tag. */
@@ -60,12 +69,13 @@ export interface StreamRow {
   pressureBarG: number;
 }
 
-function ownerOfNode(compiled: CompileResult, nodeId: string): string {
+/** Tile owning a compiled node (its hub), or the node id itself. */
+export function ownerOfNode(compiled: CompileResult, nodeId: string): string {
   for (const [tileId, nodeIds] of compiled.tileNodes) if (nodeIds.includes(nodeId)) return tileId;
   return nodeId;
 }
 
-function nodeBarG(compiled: CompileResult, result: SteadyResult, nodeId: string): number | undefined {
+function nodeBarG(compiled: CompileResult, result: SolvedState, nodeId: string): number | undefined {
   const head = result.heads.get(nodeId);
   const node = compiled.network.nodes.find((n) => n.id === nodeId);
   if (head === undefined || !node) return undefined;
@@ -73,7 +83,7 @@ function nodeBarG(compiled: CompileResult, result: SteadyResult, nodeId: string)
 }
 
 /** Net flow leaving a node through its links [m³/s]. */
-function nodeOutflow(compiled: CompileResult, result: SteadyResult, nodeId: string): number {
+function nodeOutflow(compiled: CompileResult, result: SolvedState, nodeId: string): number {
   let q = 0;
   for (const l of compiled.network.links) {
     const f = result.links.get(l.id)?.flow ?? 0;
@@ -83,7 +93,7 @@ function nodeOutflow(compiled: CompileResult, result: SteadyResult, nodeId: stri
   return q;
 }
 
-function tileReadout(model: GridModel, compiled: CompileResult, result: SteadyResult | null, tile: Tile): Readout {
+function tileReadout(model: GridModel, compiled: CompileResult, result: SolvedState | null, tile: Tile): Readout {
   const r: Readout = { id: tile.id, kind: tile.kind };
   if ('tag' in tile) r.tag = tile.tag;
   if (tile.kind === 'valve') r.openingPct = tile.opening * 100;
@@ -142,7 +152,7 @@ const INSTRUMENT_FIELD: Record<InstrumentType, { field: keyof Readout; unit: str
   LI: { field: 'levelM', unit: 'm' },
 };
 
-function instrumentReadout(model: GridModel, compiled: CompileResult, result: SteadyResult | null, inst: Instrument): Readout {
+function instrumentReadout(model: GridModel, compiled: CompileResult, result: SolvedState | null, inst: Instrument): Readout {
   const target = model.tiles.find((t) => t.id === inst.targetId);
   const { field, unit } = INSTRUMENT_FIELD[inst.type];
   const value = target ? tileReadout(model, compiled, result, target)[field] : undefined;
@@ -156,7 +166,7 @@ function instrumentReadout(model: GridModel, compiled: CompileResult, result: St
 export function elementReadout(
   model: GridModel,
   compiled: CompileResult,
-  result: SteadyResult | null,
+  result: SolvedState | null,
   id: string,
 ): Readout | null {
   const tile = model.tiles.find((t) => t.id === id);
@@ -166,7 +176,7 @@ export function elementReadout(
 }
 
 /** PFD stream table: one row per pipe run. */
-export function streamTable(compiled: CompileResult, result: SteadyResult): StreamRow[] {
+export function streamTable(compiled: CompileResult, result: SolvedState): StreamRow[] {
   const rows: StreamRow[] = [];
   for (const link of compiled.network.links) {
     if (!compiled.linkRunTiles.has(link.id)) continue; // equipment links are not streams
