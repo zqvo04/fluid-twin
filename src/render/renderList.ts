@@ -28,6 +28,8 @@ export interface RenderItem {
   labels: string[];
   /** Numbers shown, each copied unchanged from the element's Readout. */
   values: Partial<Record<ValueKey, number>>;
+  /** Unit of an instrument's `value`, copied from its Readout. */
+  unit?: string;
 }
 
 /** Copy the listed readout fields that are set. */

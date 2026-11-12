@@ -93,6 +93,7 @@ export function buildPfdList(grid: GridModel, compiled: CompileResult, result: S
       cell: grid.tiles.find((t) => t.id === inst.targetId)?.cell ?? { col: -1, row: -1 },
       labels: [inst.tag],
       values: pickValues(r, ['value']),
+      unit: r.unit,
     });
   }
 
@@ -268,7 +269,7 @@ export function drawPfd(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gri
     const v = item.values.value;
     if (v !== undefined) {
       // Reading under the bubble, so neighbouring bubbles never cover it.
-      const text = fmt(v, item.kind === 'PI' ? 'bar g' : item.kind === 'LI' ? 'm' : 'm³/h');
+      const text = fmt(v, item.unit ?? '');
       ctx.font = font(0.12, 600);
       const tw = ctx.measureText(text).width;
       ctx.fillStyle = ink.paper; // the leader line passes behind the reading

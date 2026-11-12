@@ -38,18 +38,18 @@ export function buildMapList(grid: GridModel, compiled: CompileResult, result: S
     };
   });
   for (const inst of grid.instruments) {
+    const r = elementReadout(grid, compiled, result, inst.tag)!;
     items.push({
       id: inst.tag,
       kind: inst.type,
       cell: grid.tiles.find((t) => t.id === inst.targetId)?.cell ?? { col: -1, row: -1 },
       labels: [inst.tag],
-      values: pickValues(elementReadout(grid, compiled, result, inst.tag)!, ['value']),
+      values: pickValues(r, ['value']),
+      unit: r.unit,
     });
   }
   return items;
 }
-
-const INSTRUMENT_UNIT = { FI: 'm³/h', FIC: 'm³/h', PI: 'bar g', LI: 'm' } as const;
 
 function bubble(ctx: CanvasRenderingContext2D, x: number, y: number, lines: string[], fontPx: number) {
   ctx.font = `600 ${fontPx}px system-ui, sans-serif`;
@@ -96,7 +96,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, view: Viewport, grid: Gri
       .filter((i) => isInstrument(i.kind) && i.cell.col === item.cell.col && i.cell.row === item.cell.row)
       .map((i) => {
         const v = i.values.value;
-        return v === undefined ? i.labels[0] : `${i.labels[0]}  ${fmt(v, INSTRUMENT_UNIT[i.kind as keyof typeof INSTRUMENT_UNIT])}`;
+        return v === undefined ? i.labels[0] : `${i.labels[0]}  ${fmt(v, i.unit ?? '')}`;
       });
     const title = item.labels.length ? `${item.labels[0]} (${item.labels[1]})` : GLOSSARY[item.kind].name;
     const lines = [title, ...(values.length ? [values.join(' · ')] : []), ...probes];

@@ -25,7 +25,7 @@ import { FluidState, waterProperties } from '../domain/fluid';
 import { PipelineNetwork, hasCheckValve } from '../domain/network';
 import { pipeGeometry, A106B } from '../domain/catalog/pipes';
 import { valveK } from '../domain/catalog/valves';
-import { bepEfficiency } from '../domain/catalog/pumps';
+import { PumpSpec, pumpShaftPower } from '../domain/catalog/pumps';
 import { fittingK } from '../domain/catalog/fittings';
 import { reynolds, churchillFriction } from './friction';
 import { waveSpeed } from './waveSpeed';
@@ -82,7 +82,7 @@ interface TPump {
   tripped: boolean;
   inertia: number; // rotor polar moment [kg m^2]
   omegaR: number; // rated angular speed [rad/s]
-  etaR: number; // rated hydraulic efficiency
+  spec: PumpSpec; // for the shaft-power (braking torque) law
   qLast: number; // last solved pump flow [m^3/s] (for the rotor update)
   /** Discharge check valve fitted — blocks reverse flow (see solveNodes). */
   checkValve: boolean;
@@ -233,7 +233,7 @@ export class NetworkTransientSim {
           tripped: false,
           inertia: s.inertia,
           omegaR: (s.ratedRpm * 2 * Math.PI) / 60,
-          etaR: bepEfficiency(s),
+          spec: s,
           qLast: steady.links.get(l.id)?.flow ?? 0,
           checkValve: hasCheckValve(l),
           forced: stopped ? { t0: 0, T: 0, from: 0, to: 0 } : null,
@@ -383,15 +383,14 @@ export class NetworkTransientSim {
       p.Q = Qn;
     }
 
-    // 4) Rotor dynamics for tripped pumps: I dω/dt = -T_fluid. With no motor
-    // torque, the fluid torque T = ρ g Q H / (η ω) decelerates the rotor, so a
-    // heavier rotor (more inertia) sustains flow longer and softens the surge.
+    // 4) Rotor dynamics for tripped pumps: I dω/dt = -T_fluid, T = P_shaft/ω.
+    // Shaft power, not ρgQH/η: once the check valve shuts (Q = 0) the impeller
+    // still churns the trapped liquid and brakes on it — with ρgQH/η the torque
+    // would vanish there and the rotor never stop. A heavier rotor (more
+    // inertia) still sustains flow longer and softens the surge.
     for (const p of this.pumps) {
-      if (!p.tripped || p.forced) continue;
-      const q = Math.max(0, p.qLast);
-      const hPump = Math.max(0, this.nodeHead[p.to] - this.nodeHead[p.from]);
-      const omega = Math.max(p.alpha * p.omegaR, 0.02 * p.omegaR);
-      const torque = (this.fluid.rho * G * q * hPump) / (p.etaR * omega);
+      if (!p.tripped || p.forced || p.alpha <= 0) continue;
+      const torque = pumpShaftPower(p.spec, Math.max(0, p.qLast), p.alpha, this.fluid.rho) / (p.alpha * p.omegaR);
       const dAlpha = -(torque * this.dt) / (p.inertia * p.omegaR);
       p.alpha = Math.max(0, p.alpha + dAlpha);
     }
