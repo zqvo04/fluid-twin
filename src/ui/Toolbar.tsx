@@ -15,6 +15,8 @@ export function Toolbar() {
   const loadGrid = useAppStore((s) => s.loadGrid);
   const setView = useAppStore((s) => s.setView);
   const bumpTheme = useAppStore((s) => s.bumpTheme);
+  const viewMode = useAppStore((s) => s.viewMode);
+  const setViewMode = useAppStore((s) => s.setViewMode);
   const fileInput = useRef<HTMLInputElement>(null);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme);
@@ -55,6 +57,15 @@ export function Toolbar() {
         <span className="mark" aria-hidden />
         FluidTwin
         <small>2D Sandbox</small>
+      </div>
+
+      <div className="segmented" role="tablist" aria-label="보기 모드">
+        <button role="tab" aria-selected={viewMode === 'pfd'} className={viewMode === 'pfd' ? 'active' : ''} onClick={() => setViewMode('pfd')}>
+          PFD
+        </button>
+        <button role="tab" aria-selected={viewMode === 'map'} className={viewMode === 'map' ? 'active' : ''} onClick={() => setViewMode('map')}>
+          맵
+        </button>
       </div>
 
       <div className="topbar-spacer" />

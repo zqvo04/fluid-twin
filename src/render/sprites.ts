@@ -25,6 +25,14 @@ import {
   SINK_OUTLINE,
   SOURCE_FILL,
   SOURCE_OUTLINE,
+  BASIN_FILL,
+  BASIN_OUTLINE,
+  STRAINER_FILL,
+  STRAINER_OUTLINE,
+  HX_FILL,
+  HX_OUTLINE,
+  SPRAY_FILL,
+  SPRAY_OUTLINE,
   VALVE_FILL,
   VALVE_OUTLINE,
   pressureColor,
@@ -230,6 +238,87 @@ export function drawTileOrnament(
     case 'sink':
       drawCap(ctx, cx, cy, size, ports[0], excluded ? EXCLUDED_FILL : SINK_FILL, excluded ? EXCLUDED_OUTLINE : SINK_OUTLINE, 'OUT');
       break;
+    case 'basin': {
+      // An open tank with a water line: the loop's suction reservoir.
+      const w = size * 0.62;
+      roundRectPath(ctx, cx - w / 2, cy - w / 2, w, w, size * 0.08);
+      ctx.fillStyle = excluded ? EXCLUDED_FILL : BASIN_FILL;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = excluded ? EXCLUDED_OUTLINE : BASIN_OUTLINE;
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i++) {
+        const px = cx - w * 0.36 + (i * w * 0.72) / 4;
+        const py = cy - w * 0.08 + (i % 2 ? w * 0.07 : -w * 0.07);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      break;
+    }
+    case 'strainer': {
+      // A screen: disc with a cross-hatched mesh.
+      const r = size * 0.22;
+      drawDisc(ctx, cx, cy, r, excluded ? EXCLUDED_FILL : STRAINER_FILL, excluded ? EXCLUDED_OUTLINE : STRAINER_OUTLINE);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.8, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.beginPath();
+      for (let k = -2; k <= 2; k++) {
+        ctx.moveTo(cx - r + k * r * 0.45, cy - r);
+        ctx.lineTo(cx + r + k * r * 0.45, cy + r);
+        ctx.moveTo(cx + r + k * r * 0.45, cy - r);
+        ctx.lineTo(cx - r + k * r * 0.45, cy + r);
+      }
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'hx': {
+      // A shell with a zig-zag tube bundle, laid along the line.
+      const horizontal = ports.includes('E') || ports.includes('W');
+      const [w, h] = horizontal ? [size * 0.66, size * 0.38] : [size * 0.38, size * 0.66];
+      roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, Math.min(w, h) * 0.45);
+      ctx.fillStyle = excluded ? EXCLUDED_FILL : HX_FILL;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = excluded ? EXCLUDED_OUTLINE : HX_OUTLINE;
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i <= 6; i++) {
+        const t = -0.32 + (i * 0.64) / 6;
+        const off = (i % 2 ? 1 : -1) * 0.22;
+        const [px, py] = horizontal ? [cx + t * w, cy + off * h] : [cx + off * w, cy + t * h];
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      break;
+    }
+    case 'spray': {
+      // Spray header: a nozzle bar with droplets fanning away from the inlet.
+      const [dx, dy] = DIR_VECTOR[ports[0]];
+      const hx = cx - dx * size * 0.05;
+      const hy = cy - dy * size * 0.05;
+      drawDisc(ctx, hx, hy, size * 0.17, excluded ? EXCLUDED_FILL : SPRAY_FILL, excluded ? EXCLUDED_OUTLINE : SPRAY_OUTLINE);
+      if (!excluded) {
+        ctx.fillStyle = SPRAY_FILL;
+        for (const [ox, oy] of [[-0.22, 0.3], [0, 0.36], [0.22, 0.3]]) {
+          ctx.beginPath();
+          ctx.arc(cx + ox * size, cy + oy * size, size * 0.045, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      break;
+    }
     default:
       break;
   }

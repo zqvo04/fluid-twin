@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from './store';
-import { drawGrid } from '../render/tileLayer';
+import { buildMapList, drawMap } from '../render/mapLayer';
+import { buildPfdList, drawPfd } from '../render/pfdLayer';
+import { waterProperties } from '../domain/fluid';
 import { screenToCell, zoomAt, panBy } from '../render/viewport';
 import { makeTile, DEFAULT_TILE_DEFAULTS } from '../grid/ops';
 import { computePressureField } from '../render/pressureField';
@@ -29,6 +31,7 @@ export function GridCanvas() {
   const transientHeads = useAppStore((s) => s.transient.heads);
   const transientActive = useAppStore((s) => s.transient.running || s.transient.history.length > 0);
   const themeTick = useAppStore((s) => s.themeTick);
+  const viewMode = useAppStore((s) => s.viewMode);
 
   const setHoverCell = useAppStore((s) => s.setHoverCell);
   const clickCell = useAppStore((s) => s.clickCell);
@@ -82,6 +85,14 @@ export function GridCanvas() {
     return result ? computePressureField(grid, compiled, result.heads, result.links) : null;
   }, [showPressure, result, grid, compiled, transientActive, transientHeads]);
 
+  // Both modes read numbers through readouts.ts; a diverged solve shows none.
+  const solved = useMemo(
+    () => (result?.converged ? { heads: result.heads, links: result.links, fluid: waterProperties(grid.temperatureC) } : null),
+    [result, grid.temperatureC],
+  );
+  const pfdList = useMemo(() => (viewMode === 'pfd' ? buildPfdList(grid, compiled, solved) : null), [viewMode, grid, compiled, solved]);
+  const mapList = useMemo(() => (viewMode === 'map' ? buildMapList(grid, compiled, solved) : null), [viewMode, grid, compiled, solved]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -89,18 +100,22 @@ export function GridCanvas() {
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawGrid(ctx, view, grid, {
-      hoverCell,
-      selectedTileId,
-      excludedTileIds,
-      ghostTile,
-      compiled,
-      pressureField,
-      pumpHealth: result?.pumps ?? null,
-    });
+    if (pfdList) {
+      drawPfd(ctx, view, grid, pfdList, { hoverCell, selectedTileId, ghostTile });
+    } else {
+      drawMap(ctx, view, grid, mapList ?? [], {
+        hoverCell,
+        selectedTileId,
+        excludedTileIds,
+        ghostTile,
+        compiled,
+        pressureField,
+        pumpHealth: result?.pumps ?? null,
+      });
+    }
     // ghostTile is derived fresh each render from hoverCell/armedKind/etc, so
     // it is intentionally excluded from the dep list to avoid an identity churn.
-  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, result, themeTick]);
+  }, [grid, view, hoverCell, selectedTileId, excludedTileIds, armedKind, armedRotation, compiled, pressureField, result, themeTick, pfdList, mapList]);
 
   const eventCell = useCallback(
     (e: React.MouseEvent) => {
@@ -166,7 +181,8 @@ export function GridCanvas() {
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
-      <canvas ref={fluidCanvasRef} className="fluid-canvas" />
+      {/* PFD draws flow arrows, not particles (drawing convention). */}
+      <canvas ref={fluidCanvasRef} className="fluid-canvas" style={viewMode === 'pfd' ? { display: 'none' } : undefined} />
     </div>
   );
 }

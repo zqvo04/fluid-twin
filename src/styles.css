@@ -456,6 +456,11 @@ button.danger:hover {
 .piece-icon-pump { background: linear-gradient(135deg, var(--color-part-pump), var(--color-part-pump-dim)); border-radius: 50%; }
 .piece-icon-source { background: linear-gradient(135deg, var(--color-part-source), var(--color-part-source-dim)); border-radius: 8px; }
 .piece-icon-sink { background: linear-gradient(135deg, var(--color-part-sink), var(--color-part-sink-dim)); border-radius: 8px; }
+/* Same hues as the canvas sprites (render/theme.ts). */
+.piece-icon-basin { background: linear-gradient(135deg, #3a9bd9, #2276ad); border-radius: 4px; }
+.piece-icon-strainer { background: linear-gradient(135deg, #8fb3ad, #5f8a83); border-radius: 50%; }
+.piece-icon-hx { background: linear-gradient(135deg, #f08a4b, #c9662a); border-radius: 10px; }
+.piece-icon-spray { background: linear-gradient(135deg, #5cc3c9, #2f9aa1); border-radius: 50% 50% 8px 8px; }
 
 /* ===================================================================
    Form fields

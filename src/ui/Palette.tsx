@@ -12,6 +12,10 @@ const PIECES: Array<{ kind: TileKind; label: string; hint: string }> = [
   { kind: 'pump', label: '펌프', hint: 'Adds head' },
   { kind: 'source', label: 'IN', hint: 'Fixed-head source' },
   { kind: 'sink', label: 'OUT', hint: 'Outlet / demand' },
+  { kind: 'basin', label: '수조', hint: 'Cooling-tower basin' },
+  { kind: 'strainer', label: '스트레이너', hint: 'Suction strainer' },
+  { kind: 'hx', label: '열교환기', hint: 'Heat exchanger (ΔP)' },
+  { kind: 'spray', label: '살수 헤더', hint: 'Spray header → basin' },
 ];
 
 export function Palette() {

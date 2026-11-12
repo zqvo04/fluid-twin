@@ -35,6 +35,11 @@ export function gridLineStrong(): string {
   return isDarkMode() ? GRID_LINE_STRONG_DARK : GRID_LINE_STRONG_LIGHT;
 }
 
+/** PFD sheet: black-on-white line art, inverted on the dark theme. */
+export function pfdInk(): { ink: string; paper: string } {
+  return isDarkMode() ? { ink: '#dbe7e5', paper: CANVAS_BG_DARK } : { ink: '#151a19', paper: '#ffffff' };
+}
+
 export const PIPE_FILL = '#e4527a';
 export const PIPE_OUTLINE = '#c43862';
 export const PIPE_HIGHLIGHT = '#f4a8bc';
@@ -50,6 +55,15 @@ export const SOURCE_OUTLINE = '#25904f';
 
 export const SINK_FILL = '#4ea8de';
 export const SINK_OUTLINE = '#2e82b5';
+
+export const BASIN_FILL = '#3a9bd9';
+export const BASIN_OUTLINE = '#2276ad';
+export const STRAINER_FILL = '#8fb3ad';
+export const STRAINER_OUTLINE = '#5f8a83';
+export const HX_FILL = '#f08a4b';
+export const HX_OUTLINE = '#c9662a';
+export const SPRAY_FILL = '#5cc3c9';
+export const SPRAY_OUTLINE = '#2f9aa1';
 
 export const EXCLUDED_FILL = '#b9c4c4';
 export const EXCLUDED_OUTLINE = '#94a3a3';
